@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SmartArchive.Domain/SmartArchive.Domain.csproj" />
+    <Project Path="src/SmartArchive.Application/SmartArchive.Application.csproj" />
+    <Project Path="src/SmartArchive.Infrastructure/SmartArchive.Infrastructure.csproj" />
+    <Project Path="src/SmartArchive.Web/SmartArchive.Web.csproj" />
+  </Folder>
+</Solution>

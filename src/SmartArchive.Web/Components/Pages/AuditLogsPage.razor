@@ -1,0 +1,37 @@
+@page "/admin/audit"
+@attribute [Authorize(Roles = "Administrator")]
+@using Microsoft.EntityFrameworkCore
+@using SmartArchive.Application.Common.Interfaces
+@inject IApplicationDbContext DbContext
+
+<MudText Typo="Typo.h4" GutterBottom="true">Enterprise Security & Audit Logs</MudText>
+
+<MudTable Items="@_logs" Hover="true" Striped="true" Elevation="2">
+    <HeaderContent>
+        <MudTh>Timestamp (UTC)</MudTh>
+        <MudTh>User</MudTh>
+        <MudTh>Action</MudTh>
+        <MudTh>Entity</MudTh>
+        <MudTh>Details</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
+        <MudTd>@context.UserEmail</MudTd>
+        <MudTd><MudChip T="string" Size="Size.Small">@context.Action</MudChip></MudTd>
+        <MudTd>@context.EntityName (@context.EntityId)</MudTd>
+        <MudTd>@context.Details</MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private List<AuditLog> _logs = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _logs = await DbContext.AuditLogs
+            .AsNoTracking()
+            .OrderByDescending(l => l.Timestamp)
+            .Take(200)
+            .ToListAsync();
+    }
+}

@@ -1,0 +1,13 @@
+<CascadingAuthenticationState>
+    <Router AppAssembly="typeof(Program).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+                <NotAuthorized>
+                    <MudAlert Severity="Severity.Warning" Class="ma-6">
+                        Accès refusé / غير مصرح بالوصول — Veuillez vous connecter avec les autorisations requises.
+                    </MudAlert>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+        </Found>
+    </Router>
+</CascadingAuthenticationState>

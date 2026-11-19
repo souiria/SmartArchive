@@ -1,0 +1,77 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudRTLProvider RightToLeft="@IsRtl">
+    <MudLayout>
+        <MudAppBar Elevation="1" Color="Color.Primary">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@DrawerToggle" />
+            <MudText Typo="Typo.h6" Class="ml-3">SmartArchive AI</MudText>
+            <MudSpacer />
+            <MudButton Variant="Variant.Outlined" Color="Color.Inherit" Size="Size.Small" OnClick="@ToggleLanguage" Class="mx-2">
+                @(IsRtl ? "Français (LTR)" : "العربية (RTL)")
+            </MudButton>
+            <AuthorizeView>
+                <Authorized>
+                    <MudText Typo="Typo.body2" Class="mx-2">@context.User.Identity?.Name</MudText>
+                    <form method="post" action="/account/logout">
+                        <MudButton ButtonType="ButtonType.Submit" Color="Color.Inherit" Icon="@Icons.Material.Filled.Logout">Logout</MudButton>
+                    </form>
+                </Authorized>
+                <NotAuthorized>
+                    <MudButton Href="/login" Color="Color.Inherit">Login</MudButton>
+                </NotAuthorized>
+            </AuthorizeView>
+        </MudAppBar>
+
+        <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+            <MudNavMenu>
+                <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+                    @(IsRtl ? "لوحة القيادة" : "Tableau de bord")
+                </MudNavLink>
+                <MudNavLink Href="/upload" Icon="@Icons.Material.Filled.CloudUpload">
+                    @(IsRtl ? "رفع ومسح الوثائق" : "Numérisation & Upload")
+                </MudNavLink>
+                <MudNavLink Href="/validation" Icon="@Icons.Material.Filled.FactCheck">
+                    @(IsRtl ? "التحقق من التصنيف (AI)" : "Validation IA")
+                </MudNavLink>
+                <MudNavLink Href="/search" Icon="@Icons.Material.Filled.Search">
+                    @(IsRtl ? "البحث المتقدم والأرشيف" : "Recherche & Archives")
+                </MudNavLink>
+                <AuthorizeView Roles="Administrator">
+                    <MudDivider Class="my-2" />
+                    <MudNavLink Href="/admin/departments" Icon="@Icons.Material.Filled.Business">
+                        @(IsRtl ? "إدارة الأقسام" : "Départements")
+                    </MudNavLink>
+                    <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.People">
+                        @(IsRtl ? "المستخدمون والصلاحيات" : "Utilisateurs & Rôles")
+                    </MudNavLink>
+                    <MudNavLink Href="/admin/audit" Icon="@Icons.Material.Filled.History">
+                        @(IsRtl ? "سجل التدقيق" : "Journal d'Audit")
+                    </MudNavLink>
+                </AuthorizeView>
+            </MudNavMenu>
+        </MudDrawer>
+
+        <MudMainContent Class="pa-6">
+            @Body
+        </MudMainContent>
+    </MudLayout>
+</MudRTLProvider>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool IsRtl => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ar";
+
+    private void DrawerToggle() => _drawerOpen = !_drawerOpen;
+
+    private void ToggleLanguage()
+    {
+        var targetCulture = IsRtl ? "fr-FR" : "ar-MA";
+        var uri = new Uri(Navigation.Uri).GetComponents(UriComponents.PathAndQuery, UriFormat.UriEscaped);
+        Navigation.NavigateTo($"/culture/set?culture={targetCulture}&redirectUri={Uri.EscapeDataString(uri)}", forceLoad: true);
+    }
+}

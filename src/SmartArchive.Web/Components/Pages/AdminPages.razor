@@ -1,0 +1,65 @@
+@page "/admin/departments"
+@attribute [Authorize(Roles = "Administrator")]
+@using Microsoft.EntityFrameworkCore
+@using SmartArchive.Application.Common.Interfaces
+@inject IApplicationDbContext DbContext
+@inject ISnackbar Snackbar
+
+<MudText Typo="Typo.h4" GutterBottom="true">Department Management</MudText>
+
+<MudPaper Class="pa-4 mb-6" Elevation="2">
+    <MudGrid>
+        <MudItem xs="12" md="2"><MudTextField @bind-Value="_newDept.Code" Label="Code (e.g. QSE)" Variant="Variant.Outlined" /></MudItem>
+        <MudItem xs="12" md="4"><MudTextField @bind-Value="_newDept.NameFr" Label="Nom (Français)" Variant="Variant.Outlined" /></MudItem>
+        <MudItem xs="12" md="4"><MudTextField @bind-Value="_newDept.NameAr" Label="الاسم (بالعربية)" Variant="Variant.Outlined" /></MudItem>
+        <MudItem xs="12" md="2" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="AddDepartment">Add</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudTable Items="@_departments" Hover="true" Elevation="2">
+    <HeaderContent>
+        <MudTh>Code</MudTh>
+        <MudTh>Français</MudTh>
+        <MudTh>العربية</MudTh>
+        <MudTh>Retention (Years)</MudTh>
+        <MudTh>Actions</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd>@context.Code</MudTd>
+        <MudTd>@context.NameFr</MudTd>
+        <MudTd>@context.NameAr</MudTd>
+        <MudTd>@context.DefaultRetentionYears</MudTd>
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteDepartment(context))" />
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private List<Department> _departments = new();
+    private Department _newDept = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _departments = await DbContext.Departments.ToListAsync();
+
+    private async Task AddDepartment()
+    {
+        if (string.IsNullOrWhiteSpace(_newDept.Code)) return;
+        DbContext.Departments.Add(_newDept);
+        await DbContext.SaveChangesAsync();
+        _newDept = new();
+        await LoadAsync();
+        Snackbar.Add("Department created.", Severity.Success);
+    }
+
+    private async Task DeleteDepartment(Department dept)
+    {
+        DbContext.Departments.Remove(dept); // Soft-deleted automatically via Interceptor
+        await DbContext.SaveChangesAsync();
+        await LoadAsync();
+        Snackbar.Add("Department soft-deleted.", Severity.Info);
+    }
+}
