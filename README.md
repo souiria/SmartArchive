@@ -54,3 +54,11 @@ Le fichier `.env.example` donne les noms sans valeurs. Les clés Azure réelles 
 ```bash
 dotnet build SmartArchive.slnx
 ```
+
+## Tests unitaires
+
+```bash
+dotnet test SmartArchive.slnx
+```
+
+Les tests couvrent les transitions autorisées/interdites du cycle documentaire, notamment l’interdiction d’archiver directement un document non validé.
