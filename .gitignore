@@ -1,21 +1,13 @@
-# Visual Studio
+**/bin/
+**/obj/
 .vs/
-bin/
-obj/
-
-# User files
-*.user
-*.suo
-
-# Rider
 .idea/
-
-# Logs
-*.log
-
-# Packages
-packages/
-
-# OS
-Thumbs.db
-Desktop.ini
+.vscode/
+.env
+.env.*
+!.env.example
+**/App_Data/
+*.db
+*.db-shm
+*.db-wal
+TestResults/

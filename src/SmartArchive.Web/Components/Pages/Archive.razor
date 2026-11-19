@@ -1,0 +1,9 @@
+@page "/archive"
+@rendermode InteractiveServer
+@using SmartArchive.Application
+@using SmartArchive.Domain
+@inject IDocumentRepository Repository
+<PageTitle>Archive documentaire · Smart Archive</PageTitle>
+<div class="page-heading"><div><div class="eyebrow">CONSULTATION DOCUMENTAIRE</div><h1>Archive</h1><p>Recherche dans les documents approuvés et archivés.</p></div></div>
+<section class="panel archive-panel"><div class="filters"><input placeholder="Titre, référence, département, mots-clés ou texte extrait…" @bind="_query" @bind:event="oninput" /><select @bind="_department"><option value="">Tous les départements</option>@foreach(var d in _departments){<option value="@d.Id">@d.Name</option>}</select><button class="button primary" @onclick="Search">Rechercher</button></div><div class="table-wrap"><table><thead><tr><th>Titre / Référence</th><th>Département</th><th>Catégorie</th><th>Date document</th><th>Validé par</th><th></th></tr></thead><tbody>@foreach(var d in _docs){<tr><td><span class="doc-title">@d.Title</span><small>@d.ReferenceNumber · @d.FileName</small></td><td>@d.DepartmentName</td><td>@d.Category</td><td>@d.DocumentDate?.ToString("dd/MM/yyyy")</td><td>@d.ValidatedBy</td><td><a class="icon-link" target="_blank" href="/api/documents/@d.Id/file">Voir PDF ↗</a></td></tr>}@if(_docs.Count==0){<tr><td colspan="6" class="empty">Aucun document archivé ne correspond à votre recherche.</td></tr>}</tbody></table></div></section>
+@code {private string _query=""; private string _department=""; private List<ArchiveDocument> _docs=[]; private List<Department> _departments=[]; protected override async Task OnInitializedAsync(){_departments=(await Repository.DepartmentsAsync()).ToList(); await Search();} private async Task Search(){int? dep=int.TryParse(_department,out var id)?id:null; _docs=(await Repository.ListAsync(_query,DocumentStatus.Archived,dep)).ToList();}}
