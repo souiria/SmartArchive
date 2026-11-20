@@ -30,3 +30,24 @@ public interface IDocumentWorkflow
     Task ReviewAsync(Guid id, string title, string department, string category, DateOnly? date, string reference, string comment, string reviewer, bool approve, CancellationToken ct = default);
     Task<byte[]?> DownloadAsync(Guid id, CancellationToken ct = default);
 }
+
+public sealed class SmartArchiveSettings
+{
+    public SmartArchiveSettings() { }
+    public SmartArchiveSettings(string displayName, string localStorageFolder, bool compressPdfs)
+    {
+        DisplayName = displayName;
+        LocalStorageFolder = localStorageFolder;
+        CompressPdfs = compressPdfs;
+    }
+
+    public string DisplayName { get; set; } = "";
+    public string LocalStorageFolder { get; set; } = "documents";
+    public bool CompressPdfs { get; set; }
+}
+
+public interface IArchiveSettingsService
+{
+    Task<SmartArchiveSettings> GetAsync(CancellationToken cancellationToken = default);
+    Task SaveAsync(SmartArchiveSettings settings, CancellationToken cancellationToken = default);
+}

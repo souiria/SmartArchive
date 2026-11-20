@@ -1,0 +1,84 @@
+@page "/settings"
+@rendermode InteractiveServer
+@inject IArchiveSettingsService ArchiveSettings
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Settings · Smart Archive</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="sa-page-header" Wrap="Wrap.Wrap">
+    <div>
+        <MudText Typo="Typo.overline" Class="sa-eyebrow">WORKSPACE CONFIGURATION</MudText>
+        <MudText Typo="Typo.h4" Class="sa-page-title">Settings</MudText>
+        <MudText Class="sa-page-subtitle">Configure the operator label and how uploaded PDFs are stored.</MudText>
+    </div>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid Spacing="3">
+        <MudItem xs="12" lg="7">
+            <MudPaper Outlined="true" Class="sa-surface pa-5">
+                <MudText Class="sa-panel-title">Workspace profile</MudText>
+                <MudText Class="sa-panel-subtitle mb-4">This is a configured label only. It does not sign users in or identify an authenticated account.</MudText>
+                <MudTextField @bind-Value="_model.DisplayName" Label="Display name" Variant="Variant.Outlined" MaxLength="80" Required="true" />
+
+                <MudDivider Class="my-5" />
+                <MudText Class="sa-panel-title">PDF storage</MudText>
+                <MudText Class="sa-panel-subtitle mb-3">New uploads are copied from the browser to the server. Browser security does not allow the app to move or delete the user's local source file.</MudText>
+                <MudTextField @bind-Value="_model.LocalStorageFolder" Label="Folder inside App_Data" HelperText="For example: documents or archive/pdfs. Existing files remain available; changing this affects new uploads only." Variant="Variant.Outlined" Required="true" />
+                <MudSwitch T="bool" @bind-Value="_model.CompressPdfs" Color="Color.Primary" Class="mt-4">Enable lossless compression at rest</MudSwitch>
+                <MudText Typo="Typo.caption" Class="sa-page-subtitle">When enabled, the app stores a lossless GZip representation only if it is smaller. Downloads and previews restore the exact original PDF bytes. No image quality or resolution is changed; already-compressed PDFs may not shrink.</MudText>
+
+                <MudStack Row="true" Justify="Justify.FlexEnd" Class="mt-5">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" Disabled="_saving" OnClick="SaveAsync">@(_saving ? "Saving..." : "Save settings")</MudButton>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" lg="5">
+            <MudPaper Outlined="true" Class="sa-surface pa-5">
+                <MudText Class="sa-panel-title">Azure Document Intelligence</MudText>
+                <MudText Class="sa-panel-subtitle mb-3">Status: @(_azureConfigured ? "Endpoint configured" : "Not configured")</MudText>
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="sa-notice">
+                    <MudText Typo="Typo.body2">Set <code>AzureDocumentIntelligence__Endpoint</code> in the hosting environment. Then use either a secret-held <code>AzureDocumentIntelligence__ApiKey</code> or Microsoft Entra ID via <code>DefaultAzureCredential</code>. Do not store Azure passwords or keys in this page, appsettings, or Git.</MudText>
+                </MudAlert>
+                <MudText Typo="Typo.caption" Class="d-block mt-3">For local development, sign in using Azure CLI (<code>az login</code>). For an Azure-hosted app, use its managed identity and grant it the Document Intelligence role.</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private SmartArchiveSettings _model = new("", "documents", false);
+    private bool _loading = true;
+    private bool _saving;
+    private bool _azureConfigured;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model = await ArchiveSettings.GetAsync();
+        _azureConfigured = !string.IsNullOrWhiteSpace(Configuration["AzureDocumentIntelligence:Endpoint"]);
+        _loading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            await ArchiveSettings.SaveAsync(_model);
+            Snackbar.Add("Settings saved.", Severity.Success);
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+        }
+        catch (ArgumentException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+}

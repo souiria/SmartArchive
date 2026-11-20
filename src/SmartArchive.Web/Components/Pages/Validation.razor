@@ -41,8 +41,8 @@ else
                     <MudItem xs="12" lg="5">
                         <div class="sa-validation-form">
                             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AutoAwesome" Class="sa-review-alert mb-3">
-                                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">AI suggestions — for guidance</MudText><MudChip T="string" Size="Size.Small" Color="ConfidenceColor(document.Confidence)" Variant="Variant.Filled">@document.Confidence.ToString("P0")</MudChip></MudStack>
-                                <MudText Typo="Typo.caption">The score does not guarantee accuracy. Human approval is still required.</MudText>
+                                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Suggestion signal — for guidance</MudText><MudChip T="string" Size="Size.Small" Color="ConfidenceColor(document.Confidence)" Variant="Variant.Filled">@document.Confidence.ToString("P0")</MudChip></MudStack>
+                                <MudText Typo="Typo.caption">Where available, the score uses Azure word-level OCR confidence plus rule-based category evidence. It is not a trained document-classifier probability. Human approval is still required.</MudText>
                             </MudAlert>
                             @if (!string.IsNullOrWhiteSpace(document.Warnings)) { <MudAlert Severity="Severity.Warning" Dense="true" Variant="Variant.Outlined" Class="mb-3">@document.Warnings</MudAlert> }
                             <MudTextField @bind-Value="document.Title" Label="Document title" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />

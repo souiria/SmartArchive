@@ -16,6 +16,7 @@ public static class DependencyInjection
             if (!string.IsNullOrWhiteSpace(sqlServer)) options.UseSqlServer(sqlServer);
             else options.UseSqlite(sqlite ?? $"Data Source={Path.Combine(env.ContentRootPath, "App_Data", "smartarchive.db")}");
         });
+        services.AddSingleton<IArchiveSettingsService, ArchiveSettingsService>();
         services.AddScoped<IDocumentRepository, EfDocumentRepository>();
         services.AddScoped<IFileStorageService, FileStorageService>();
         services.AddScoped<IDocumentIntelligenceService, DocumentIntelligenceService>();

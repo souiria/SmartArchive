@@ -27,13 +27,16 @@ Ouvrir l’URL indiquée par ASP.NET Core. La base SQLite `App_Data/smartarchive
 5. Rechercher les éléments archivés. Les téléchargements/aperçus sont servis via un endpoint applicatif.
 
 ## Configuration
-Créer les clés par variables d’environnement ou `appsettings.Development.json` local (ne jamais committer de secrets) :
+Set runtime values through environment variables or a local `appsettings.Development.json`. Never commit secrets:
 
-- `ConnectionStrings__SqlServer` : SQL Server (prioritaire si défini); sinon SQLite local.
-- `AzureBlobStorage__ConnectionString` et `AzureBlobStorage__Container` : Azure Blob Storage; sinon stockage disque local.
-- `AzureDocumentIntelligence__Endpoint` et `AzureDocumentIntelligence__ApiKey` : Document Intelligence (modèle `prebuilt-read`). Sans les deux valeurs, le mode heuristique local est utilisé.
+- `ConnectionStrings__SqlServer`: SQL Server (preferred when configured); otherwise local SQLite.
+- `AzureBlobStorage__ConnectionString` and `AzureBlobStorage__Container`: Azure Blob Storage; otherwise local disk storage.
+- `AzureDocumentIntelligence__Endpoint`: the Document Intelligence resource endpoint. With `AzureDocumentIntelligence__ApiKey`, the app uses the resource key. If the key is empty, the app uses `DefaultAzureCredential` (for example, `az login` locally or a managed identity in Azure). For Entra ID, use a custom-subdomain endpoint and grant the app identity the `Cognitive Services User` role. Never use a Portal username/password in the application.
+- `SmartArchive__User__DisplayName`: the configured display label shown in the app. This is not an authenticated identity; sign-in is not implemented.
+- `SmartArchive__Storage__LocalFolder`: relative subfolder inside `App_Data`, default `documents`. The Settings page can change this for new uploads; existing files remain in place and accessible.
+- `SmartArchive__Compression__Enabled`: enables lossless GZip storage for PDFs. The app stores the compressed representation only when it is smaller; previews and downloads decompress it to the exact original PDF bytes. No lossy image changes are made.
 
-Le fichier `.env.example` donne les noms sans valeurs. Les clés Azure réelles restent dans le gestionnaire de secrets de l’hôte.
+Azure keys belong only in the hosting secret store or environment, never in source control. With no Document Intelligence endpoint, the app clearly indicates that only local rule-based classification is being used. OCR text extraction uses Azure `prebuilt-read`; department/category suggestions remain rule-based and require human review.
 
 ## Limites fonctionnelles connues
 - Pas encore d’authentification/autorisation (Identity, RBAC, restrictions département), administration CRUD des départements, gestion versionnée de document, rétention, chiffrement de bout en bout, antimalware ou protection CSRF vérifiée sur tous les parcours.

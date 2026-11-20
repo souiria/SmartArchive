@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SmartArchive.Domain\SmartArchive.Domain.csproj" />
+    <ProjectReference Include="..\..\src\SmartArchive.Infrastructure\SmartArchive.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

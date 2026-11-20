@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@inject IArchiveSettingsService ArchiveSettings
+@inject IConfiguration Configuration
 
 <MudThemeProvider Theme="@_theme" />
 <MudPopoverProvider />
@@ -10,9 +12,9 @@
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" aria-label="Open menu" Class="mr-2" />
         <div class="sa-breadcrumb"><span>SEWS MOROCCO</span><MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" /><strong>SMART ARCHIVE</strong></div>
         <MudSpacer />
-        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" Icon="@Icons.Material.Filled.Circle" Class="sa-env-chip">Local mode</MudChip>
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" Icon="@Icons.Material.Filled.Circle" Class="sa-env-chip">@_storageMode</MudChip>
         <MudDivider Vertical="true" FlexItem="true" Class="mx-3" />
-        <MudAvatar Size="Size.Small" Color="Color.Primary" Class="sa-avatar">SM</MudAvatar>
+        <MudAvatar Size="Size.Small" Color="Color.Primary" Class="sa-avatar">@_initials</MudAvatar>
     </MudAppBar>
 
     <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" ClipMode="DrawerClipMode.Always" Elevation="1" Width="268px" Class="sa-drawer">
@@ -23,8 +25,8 @@
         <NavMenu />
         <MudSpacer />
         <div class="sa-user-card">
-            <MudAvatar Size="Size.Medium" Color="Color.Secondary" Class="sa-user-avatar">SM</MudAvatar>
-            <div><MudText Typo="Typo.body2" Class="sa-user-name">Demo mode</MudText><MudText Typo="Typo.caption" Class="sa-user-caption">Authentication not configured</MudText></div>
+            <MudAvatar Size="Size.Medium" Color="Color.Secondary" Class="sa-user-avatar">@_initials</MudAvatar>
+            <div><MudText Typo="Typo.body2" Class="sa-user-name">@_displayName</MudText><MudText Typo="Typo.caption" Class="sa-user-caption">Configured operator · sign-in not enabled</MudText></div>
         </div>
     </MudDrawer>
 
@@ -38,6 +40,9 @@
 
 @code {
     private bool _drawerOpen = true;
+    private string _displayName = "Abderrahim Souirite";
+    private string _initials = "AS";
+    private string _storageMode = "Local storage";
     private readonly MudTheme _theme = new()
     {
         PaletteLight = new PaletteLight
@@ -58,6 +63,15 @@
         },
         LayoutProperties = new LayoutProperties { DefaultBorderRadius = "10px" }
     };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var settings = await ArchiveSettings.GetAsync();
+        _displayName = settings.DisplayName;
+        _initials = string.Concat(settings.DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(part => char.ToUpperInvariant(part[0])));
+        if (string.IsNullOrWhiteSpace(_initials)) _initials = "SA";
+        _storageMode = string.IsNullOrWhiteSpace(Configuration["AzureBlobStorage:ConnectionString"]) ? "Local storage" : "Azure Blob Storage";
+    }
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 }

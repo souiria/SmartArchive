@@ -21,7 +21,9 @@ public sealed class DocumentWorkflow(IDocumentRepository repository, IFileStorag
         var doc = new ArchiveDocument { Id = id, FileName = Path.GetFileName(fileName), Title = Path.GetFileNameWithoutExtension(fileName), BlobReference = reference, ContentHash = hash, SizeBytes = bytes.Length, UploadedBy = uploadedBy, Status = DocumentStatus.Uploaded, AuditJson = AddAudit("Upload", uploadedBy, "PDF received") };
         DocumentLifecycle.Move(doc, DocumentStatus.Processing);
         await repository.AddAsync(doc, ct);
-        try { await Analyze(doc, ct); } catch { DocumentLifecycle.Move(doc, DocumentStatus.ProcessingFailed); doc.Warnings = "Analysis failed. You can retry processing."; await repository.SaveAsync(doc, ct); }
+        try { await Analyze(doc, ct); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception ex) { DocumentLifecycle.Move(doc, DocumentStatus.ProcessingFailed); doc.Warnings = $"Analysis failed ({ex.GetType().Name}). Check service settings, including Azure endpoint/authentication if configured, then retry."; await repository.SaveAsync(doc, ct); }
         return new UploadResult(id, fileName, false);
     }
     public async Task RetryAnalysisAsync(Guid id, CancellationToken ct = default) { var doc = await repository.GetAsync(id, ct) ?? throw new KeyNotFoundException(); DocumentLifecycle.Move(doc, DocumentStatus.Processing); await repository.SaveAsync(doc, ct); await Analyze(doc, ct); }

@@ -20,21 +20,21 @@ app.MapStaticAssets();
 app.MapDefaultEndpoints();
 app.MapGet("/api/documents", async (string? q, string? status, IDocumentRepository repo) => { Enum.TryParse<SmartArchive.Domain.DocumentStatus>(status, true, out var parsed); return Results.Ok(await repo.ListAsync(q, status is null ? null : parsed)); });
 app.MapGet("/api/dashboard", async (IDocumentRepository repo) => Results.Ok(await repo.StatisticsAsync()));
-app.MapPost("/api/documents/upload", async (HttpRequest request, IDocumentWorkflow workflow) =>
+app.MapPost("/api/documents/upload", async (HttpRequest request, IDocumentWorkflow workflow, IArchiveSettingsService settings) =>
 {
     if (!request.HasFormContentType || request.Form.Files.Count == 0) return Results.BadRequest(new { error = "Select a PDF file." });
     var results = new List<object>();
     foreach (var file in request.Form.Files)
     {
         await using var stream = file.OpenReadStream();
-        try { results.Add(await workflow.UploadAsync(file.FileName, file.ContentType, stream, "Local operator")); }
+        try { results.Add(await workflow.UploadAsync(file.FileName, file.ContentType, stream, (await settings.GetAsync()).DisplayName)); }
         catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
     }
     return Results.Ok(results);
 }).DisableAntiforgery();
-app.MapPost("/api/documents/{id:guid}/review", async (Guid id, ReviewRequest body, IDocumentWorkflow workflow) =>
+app.MapPost("/api/documents/{id:guid}/review", async (Guid id, ReviewRequest body, IDocumentWorkflow workflow, IArchiveSettingsService settings) =>
 {
-    try { await workflow.ReviewAsync(id, body.Title, body.Department, body.Category, body.DocumentDate, body.ReferenceNumber, body.Comment ?? "", "Local reviewer", body.Approve); return Results.NoContent(); }
+    try { await workflow.ReviewAsync(id, body.Title, body.Department, body.Category, body.DocumentDate, body.ReferenceNumber, body.Comment ?? "", (await settings.GetAsync()).DisplayName, body.Approve); return Results.NoContent(); }
     catch (KeyNotFoundException) { return Results.NotFound(); }
     catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
