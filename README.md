@@ -1,6 +1,6 @@
 # Smart Archive — SEWS Maroc
 
-Socle fonctionnel de gestion documentaire avec dépôt PDF, empreinte anti-doublon, analyse indicative, file de validation humaine obligatoire, archivage après approbation, recherche, aperçu PDF et statistiques. Solution .NET 9 / Blazor Web App / EF Core / Aspire.
+Socle fonctionnel de gestion documentaire avec dépôt PDF, empreinte anti-doublon, analyse indicative, file de validation humaine obligatoire, archivage après approbation, recherche, aperçu PDF et statistiques. Solution .NET 9 / Blazor Web App avec **MudBlazor 8.15** / EF Core / Aspire.
 
 > **État et sécurité :** cette version est un socle de démonstration/local pilot. L’interface et les endpoints ne disposent pas encore de l’authentification, des rôles, ni des restrictions d’accès par département demandés pour le déploiement en entreprise. Les routes de fichier/API ne doivent pas être exposées à un réseau ou contenir de vrais documents sensibles avant l’ajout et la vérification de ces contrôles. La détection de type PDF est une validation de base, pas une protection antivirus. Les intégrations Azure sont des adaptateurs optionnels, pas une configuration de production prévalidée.
 
@@ -46,7 +46,7 @@ Le fichier `.env.example` donne les noms sans valeurs. Les clés Azure réelles 
 - `SmartArchive.Domain` : entités et statuts métier.
 - `SmartArchive.Application` : contrats de repository, workflow, IA et stockage.
 - `SmartArchive.Infrastructure` : EF Core SQLite/SQL Server, stockage local/Azure Blob, analyse mock/Azure.
-- `SmartArchive.Web` : UI Blazor, routes API et bootstrap local.
+- `SmartArchive.Web` : UI Blazor/MudBlazor responsive, shell navigationnel avec drawer, tableau de bord, dépôt, centre de validation, archive, routes API et bootstrap local.
 - `SmartArchive.AppHost` et `SmartArchive.ServiceDefaults` : orchestration Aspire et instrumentation commune.
 
 ## Build

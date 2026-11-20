@@ -1,2 +1,11 @@
-<div class="brand"><div class="brand-mark">SA</div><div><strong>SMART ARCHIVE</strong><small>SEWS MAROC</small></div></div>
-<nav class="side-nav"><span class="nav-label">ESPACE DOCUMENTAIRE</span><NavLink href="/" Match="NavLinkMatch.All"><span>▦</span> Vue d’ensemble</NavLink><NavLink href="/depot"><span>↑</span> Dépôt de documents</NavLink><NavLink href="/validation"><span>☷</span> Centre de validation</NavLink><NavLink href="/archive"><span>▤</span> Archive</NavLink><span class="nav-label admin-label">CONFIGURATION</span><a class="nav-disabled" title="Administration détaillée dans une prochaine itération"><span>⚙</span> Paramètres</a></nav><div class="side-footer"><div class="user-avatar">SM</div><div><strong>Mode démonstration</strong><small>Authentification à configurer</small></div></div>
+<div class="sa-nav-section">ESPACE DOCUMENTAIRE</div>
+<MudNavMenu Class="sa-nav-menu" Dense="true">
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.SpaceDashboard">Vue d’ensemble</MudNavLink>
+    <MudNavLink Href="/depot" Icon="@Icons.Material.Filled.CloudUpload">Dépôt de documents</MudNavLink>
+    <MudNavLink Href="/validation" Icon="@Icons.Material.Filled.FactCheck">Centre de validation</MudNavLink>
+    <MudNavLink Href="/archive" Icon="@Icons.Material.Filled.Inventory2">Archive documentaire</MudNavLink>
+</MudNavMenu>
+<div class="sa-nav-section sa-nav-section-secondary">CONFIGURATION</div>
+<MudNavMenu Class="sa-nav-menu" Dense="true">
+    <MudNavLink Disabled="true" Icon="@Icons.Material.Filled.Settings">Paramètres</MudNavLink>
+</MudNavMenu>

@@ -4,21 +4,42 @@
 @using SmartArchive.Domain
 @using System.Globalization
 @inject IDocumentRepository Repository
-@inject IDocumentWorkflow Workflow
 <PageTitle>Vue d’ensemble · Smart Archive</PageTitle>
-<div class="page-heading"><div><div class="eyebrow">SEWS MAROC · GESTION DOCUMENTAIRE</div><h1>Vue d’ensemble</h1><p>Suivez le traitement de vos documents et les validations en attente.</p></div><a class="button primary" href="/depot">＋ Déposer des documents</a></div>
-@if (_stats is null) { <p>Chargement des indicateurs…</p> } else {
-<div class="stat-grid"><article class="stat-card"><span class="stat-icon navy">▤</span><span class="stat-label">Documents archivés</span><strong>@Get("Total")</strong><small>Documents approuvés</small></article><article class="stat-card"><span class="stat-icon amber">◷</span><span class="stat-label">À valider</span><strong>@Get("Pending")</strong><small>En attente d’une revue humaine</small></article><article class="stat-card"><span class="stat-icon green">↥</span><span class="stat-label">Déposés aujourd’hui</span><strong>@Get("Today")</strong><small>Nouveaux documents</small></article><article class="stat-card"><span class="stat-icon red">!</span><span class="stat-label">Rejetés</span><strong>@Get("Rejected")</strong><small>À corriger ou compléter</small></article></div>
-<div class="content-grid"><section class="panel"><div class="panel-head"><div><h2>Documents récents</h2><p>Derniers éléments traités dans l’archive</p></div><a href="/archive">Voir l’archive →</a></div><div class="table-wrap"><table><thead><tr><th>Document</th><th>Département</th><th>Date de dépôt</th><th>État</th></tr></thead><tbody>@foreach (var doc in _recent) { <tr><td><span class="file-mark">PDF</span><span class="doc-title">@doc.Title</span><small>@doc.FileName</small></td><td>@doc.DepartmentName</td><td>@doc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.GetCultureInfo("fr-FR"))</td><td><span class="status @StatusClass(doc.Status)">@StatusText(doc.Status)</span></td></tr> } @if (_recent.Count == 0) { <tr><td colspan="4" class="empty">Aucun document pour l’instant. Déposez un premier PDF pour démarrer.</td></tr> }</tbody></table></div></section><aside class="panel departments"><div class="panel-head"><div><h2>Flux par département</h2><p>Documents archivés</p></div></div>@foreach (var pair in DepartmentStats()) { <div class="dept-row"><span>@pair.Name</span><strong>@pair.Count</strong><div class="bar"><i style="width:@Bar(pair.Count)%"></i></div></div> }</aside></div>
-<div class="notice"><strong>Règle de conformité</strong><span>Aucun document n’est archivé automatiquement. Une validation humaine est obligatoire avant l’entrée dans l’archive officielle.</span><a href="/validation">Ouvrir le centre de validation →</a></div>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="sa-page-header" Wrap="Wrap.Wrap">
+    <div><MudText Typo="Typo.overline" Class="sa-eyebrow">SEWS MAROC · GESTION DOCUMENTAIRE</MudText><MudText Typo="Typo.h4" Class="sa-page-title">Vue d’ensemble</MudText><MudText Class="sa-page-subtitle">Suivez le traitement des documents et les validations en attente.</MudText></div>
+    <MudButton Href="/depot" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload" Size="Size.Medium">Déposer des documents</MudButton>
+</MudStack>
+@if (_stats is null) { <MudProgressLinear Indeterminate="true" Color="Color.Primary" /> } else {
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Documents archivés</MudText><div class="sa-stat-icon" style="background:#e9f2fa;color:#225e90"><MudIcon Icon="@Icons.Material.Filled.Inventory2" /></div></MudStack><MudText Class="sa-stat-value">@Get("Total")</MudText><MudText Class="sa-stat-caption">Documents approuvés</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">À valider</MudText><div class="sa-stat-icon" style="background:#fff3dc;color:#a56a00"><MudIcon Icon="@Icons.Material.Filled.PendingActions" /></div></MudStack><MudText Class="sa-stat-value">@Get("Pending")</MudText><MudText Class="sa-stat-caption">En attente d’une revue humaine</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Déposés aujourd’hui</MudText><div class="sa-stat-icon" style="background:#e6f5ee;color:#218159"><MudIcon Icon="@Icons.Material.Filled.CloudDone" /></div></MudStack><MudText Class="sa-stat-value">@Get("Today")</MudText><MudText Class="sa-stat-caption">Nouveaux documents</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Rejetés</MudText><div class="sa-stat-icon" style="background:#faeaea;color:#ac4848"><MudIcon Icon="@Icons.Material.Filled.ReportProblem" /></div></MudStack><MudText Class="sa-stat-value">@Get("Rejected")</MudText><MudText Class="sa-stat-caption">À corriger ou compléter</MudText></MudPaper></MudItem>
+    </MudGrid>
+    <MudGrid Spacing="3">
+        <MudItem xs="12" lg="8"><MudPaper Outlined="true" Class="sa-surface">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="pa-4"><div><MudText Class="sa-panel-title">Documents récents</MudText><MudText Class="sa-panel-subtitle">Derniers éléments déposés dans la plateforme</MudText></div><MudButton Href="/archive" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward">Voir l’archive</MudButton></MudStack>
+            <MudTable Items="_recent" Hover="true" Dense="true" Elevation="0" Class="sa-table">
+                <HeaderContent><MudTh>Document</MudTh><MudTh>Département</MudTh><MudTh>Date de dépôt</MudTh><MudTh>État</MudTh></HeaderContent>
+                <RowTemplate Context="doc"><MudTd DataLabel="Document"><MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2"><MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" /><div><div class="sa-document-title">@doc.Title</div><div class="sa-file-name">@doc.FileName</div></div></MudStack></MudTd><MudTd DataLabel="Département">@doc.DepartmentName</MudTd><MudTd DataLabel="Date">@doc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.GetCultureInfo("fr-FR"))</MudTd><MudTd DataLabel="État"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="StatusColor(doc.Status)" Class="sa-status">@StatusText(doc.Status)</MudChip></MudTd></RowTemplate>
+                <NoRecordsContent><MudText Class="pa-6 sa-empty-state">Aucun document pour l’instant. Déposez un premier PDF pour démarrer.</MudText></NoRecordsContent>
+            </MudTable>
+        </MudPaper></MudItem>
+        <MudItem xs="12" lg="4"><MudPaper Outlined="true" Class="sa-surface pa-4"><MudText Class="sa-panel-title">Flux par département</MudText><MudText Class="sa-panel-subtitle mb-4">Documents actuellement archivés</MudText>
+            @foreach (var pair in DepartmentStats()) { <div class="sa-dept-row"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">@pair.Name</MudText><MudText Typo="Typo.body2" Style="font-weight:700">@pair.Count</MudText></MudStack><MudProgressLinear Value="@Bar(pair.Count)" Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mt-2 mb-4" /></div> }
+            @if (DepartmentStats().Count == 0) { <MudText Class="sa-empty-state">Les départements apparaîtront avec les premiers documents archivés.</MudText> }
+        </MudPaper></MudItem>
+    </MudGrid>
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.VerifiedUser" Class="sa-notice mt-4"><MudText Typo="Typo.body2"><b>Validation humaine obligatoire.</b> Aucun document n’est ajouté à l’archive officielle sans approbation explicite.</MudText><MudButton Href="/validation" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward">Centre de validation</MudButton></MudAlert>
 }
+
 @code {
- private object? _stats; private List<ArchiveDocument> _recent = []; private List<Department> _departments = [];
- protected override async Task OnInitializedAsync() { _stats = await Repository.StatisticsAsync(); _recent = (await Repository.ListAsync()).Take(8).ToList(); _departments = (await Repository.DepartmentsAsync()).ToList(); }
- private System.Text.Json.JsonElement Prop(string n) => System.Text.Json.JsonSerializer.SerializeToElement(_stats).GetProperty(n);
- private int Get(string n) => Prop(n).GetInt32();
- private List<(string Name,int Count)> DepartmentStats() { try { return Prop("ByDepartment").EnumerateArray().Select(x => (x.GetProperty("Name").GetString() ?? "", x.GetProperty("Count").GetInt32())).ToList(); } catch { return []; } }
- private int Bar(int n) => Math.Clamp(n * 13, 5, 100);
- private static string StatusText(DocumentStatus s) => s switch { DocumentStatus.Archived => "Archivé", DocumentStatus.PendingValidation => "À valider", DocumentStatus.Processing => "Analyse IA", DocumentStatus.ProcessingFailed => "Échec", DocumentStatus.Rejected => "Rejeté", _ => s.ToString() };
- private static string StatusClass(DocumentStatus s) => s switch { DocumentStatus.Archived => "success", DocumentStatus.PendingValidation => "warning", DocumentStatus.ProcessingFailed or DocumentStatus.Rejected => "danger", _ => "info" };
+    private object? _stats; private List<ArchiveDocument> _recent = [];
+    protected override async Task OnInitializedAsync() { _stats = await Repository.StatisticsAsync(); _recent = (await Repository.ListAsync()).Take(8).ToList(); }
+    private int Get(string n) => System.Text.Json.JsonSerializer.SerializeToElement(_stats).GetProperty(n).GetInt32();
+    private List<(string Name,int Count)> DepartmentStats() { try { return System.Text.Json.JsonSerializer.SerializeToElement(_stats).GetProperty("ByDepartment").EnumerateArray().Select(x => (x.GetProperty("Name").GetString() ?? "", x.GetProperty("Count").GetInt32())).ToList(); } catch { return []; } }
+    private static double Bar(int n) => Math.Clamp(n * 13, 5, 100);
+    private static string StatusText(DocumentStatus s) => s switch { DocumentStatus.Archived => "Archivé", DocumentStatus.PendingValidation => "À valider", DocumentStatus.Processing => "Analyse IA", DocumentStatus.ProcessingFailed => "Échec", DocumentStatus.Rejected => "Rejeté", _ => s.ToString() };
+    private static Color StatusColor(DocumentStatus s) => s switch { DocumentStatus.Archived => Color.Success, DocumentStatus.PendingValidation => Color.Warning, DocumentStatus.ProcessingFailed or DocumentStatus.Rejected => Color.Error, _ => Color.Info };
 }

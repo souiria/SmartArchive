@@ -1,2 +1,62 @@
 @inherits LayoutComponentBase
-<div class="app-shell"><aside class="sidebar"><NavMenu /></aside><main class="main-area"><header class="topbar"><div class="breadcrumb">SEWS MAROC <span>/</span> Smart Archive</div><div class="top-actions"><span class="env-pill"><i></i> Environnement local</span><span class="top-initials">SM</span></div></header><div class="main-content">@Body</div><footer class="app-footer">SMART ARCHIVE <span>·</span> Plateforme d’archivage documentaire SEWS Maroc</footer></main></div>
+
+<MudThemeProvider Theme="@_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout Class="sa-layout">
+    <MudAppBar Elevation="0" Color="Color.Surface" Class="sa-appbar">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="ToggleDrawer" aria-label="Ouvrir le menu" Class="mr-2" />
+        <div class="sa-breadcrumb"><span>SEWS MAROC</span><MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" /><strong>SMART ARCHIVE</strong></div>
+        <MudSpacer />
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" Icon="@Icons.Material.Filled.Circle" Class="sa-env-chip">Mode local</MudChip>
+        <MudDivider Vertical="true" FlexItem="true" Class="mx-3" />
+        <MudAvatar Size="Size.Small" Color="Color.Primary" Class="sa-avatar">SM</MudAvatar>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Variant="DrawerVariant.Responsive" ClipMode="DrawerClipMode.Always" Elevation="1" Width="268px" Class="sa-drawer">
+        <div class="sa-brand">
+            <div class="sa-brand-mark">SA</div>
+            <div><MudText Typo="Typo.subtitle2" Class="sa-brand-name">SMART ARCHIVE</MudText><MudText Typo="Typo.caption" Class="sa-brand-caption">SEWS MAROC</MudText></div>
+        </div>
+        <NavMenu />
+        <MudSpacer />
+        <div class="sa-user-card">
+            <MudAvatar Size="Size.Medium" Color="Color.Secondary" Class="sa-user-avatar">SM</MudAvatar>
+            <div><MudText Typo="Typo.body2" Class="sa-user-name">Mode démonstration</MudText><MudText Typo="Typo.caption" Class="sa-user-caption">Authentification à configurer</MudText></div>
+        </div>
+    </MudDrawer>
+
+    <MudMainContent Class="sa-main">
+        <MudContainer MaxWidth="MaxWidth.False" Class="sa-content pa-4 pa-md-7">
+            @Body
+        </MudContainer>
+        <footer class="sa-footer">SMART ARCHIVE <span>·</span> Plateforme d’archivage documentaire SEWS Maroc</footer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#174f82",
+            Secondary = "#e4a72d",
+            Tertiary = "#4a8b79",
+            Background = "#f3f6f8",
+            Surface = "#ffffff",
+            AppbarBackground = "#ffffff",
+            AppbarText = "#16324a",
+            TextPrimary = "#1b3045",
+            TextSecondary = "#718096",
+            Divider = "#e7edf1",
+            Success = "#2e8060",
+            Warning = "#b47a1b",
+            Error = "#b84b4b"
+        },
+        LayoutProperties = new LayoutProperties { DefaultBorderRadius = "10px" }
+    };
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+}

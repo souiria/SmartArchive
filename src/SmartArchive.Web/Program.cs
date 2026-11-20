@@ -1,3 +1,5 @@
+using MudBlazor.Services;
+using MudBlazor;
 using Microsoft.EntityFrameworkCore;
 using SmartArchive.Application;
 using SmartArchive.Infrastructure;
@@ -6,6 +8,7 @@ using SmartArchive.Web.Components;
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddMudServices();
 builder.Services.AddSmartArchiveInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddProblemDetails();
 var app = builder.Build();
@@ -13,6 +16,7 @@ Directory.CreateDirectory(Path.Combine(app.Environment.ContentRootPath, "App_Dat
 using (var scope = app.Services.CreateScope()) { var db = scope.ServiceProvider.GetRequiredService<ArchiveDbContext>(); await db.Database.EnsureCreatedAsync(); }
 if (!app.Environment.IsDevelopment()) { app.UseExceptionHandler(); app.UseHsts(); }
 app.UseHttpsRedirection(); app.UseAntiforgery();
+app.MapStaticAssets();
 app.MapDefaultEndpoints();
 app.MapGet("/api/documents", async (string? q, string? status, IDocumentRepository repo) => { Enum.TryParse<SmartArchive.Domain.DocumentStatus>(status, true, out var parsed); return Results.Ok(await repo.ListAsync(q, status is null ? null : parsed)); });
 app.MapGet("/api/dashboard", async (IDocumentRepository repo) => Results.Ok(await repo.StatisticsAsync()));
