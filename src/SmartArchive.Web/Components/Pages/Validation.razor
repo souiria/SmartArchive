@@ -2,9 +2,10 @@
 @rendermode InteractiveServer
 @using SmartArchive.Application
 @using SmartArchive.Domain
-@inject IDocumentRepository Repository
-@inject IDocumentWorkflow Workflow
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceScopeFactory ScopeFactory
 @inject IArchiveSettingsService ArchiveSettings
+@inject ILogger<Validation> Logger
 
 <PageTitle>Review center · Smart Archive</PageTitle>
 
@@ -55,7 +56,7 @@ else
                                 @foreach (var department in _departments) { <MudSelectItem T="string" Value="@department.Name">@department.Name</MudSelectItem> }
                             </MudSelect>
                             <MudTextField @bind-Value="document.Category" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
-                            <MudDatePicker Date="ToDateTime(document.DocumentDate)" DateChanged="@(value => UpdateDate(document, value))" Label="Document date" HelperText="Used in the archive path; if blank, the upload date is used." DateFormat="MM/dd/yyyy" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudDatePicker Date="ToDateTime(document.DocumentDate)" DateChanged="@(value => UpdateDate(document, value))" Label="Document date" HelperText="Select with the calendar button. Used in the archive path; if blank, the upload date is used." DateFormat="MM/dd/yyyy" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.CalendarMonth" AdornmentAriaLabel="Open document date calendar" PickerVariant="PickerVariant.Dialog" OpenTo="OpenTo.Date" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             <MudTextField @bind-Value="document.ReferenceNumber" Label="Reference number" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
                             <MudTextField @bind-Value="document.ReviewerComment" Label="Review comment" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" FullWidth="true" />
                             @if (!string.IsNullOrEmpty(document.ExtractedText)) { <MudExpansionPanels Class="mb-3"><MudExpansionPanel Text="Text extracted from the PDF"><MudText Typo="Typo.body2" Class="text-wrap">@document.ExtractedText</MudText></MudExpansionPanel></MudExpansionPanels> }
@@ -88,8 +89,10 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _departments = (await Repository.DepartmentsAsync()).ToList();
-        _docs = (await Repository.ListAsync(status: DocumentStatus.PendingValidation)).ToList();
+        using var scope = ScopeFactory.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IDocumentRepository>();
+        _departments = (await repository.DepartmentsAsync()).ToList();
+        _docs = (await repository.ListAsync(status: DocumentStatus.PendingValidation)).ToList();
         _reviewer = (await ArchiveSettings.GetAsync()).DisplayName;
     }
 
@@ -100,7 +103,9 @@ else
         _message = string.Empty;
         try
         {
-            await Workflow.ReviewAsync(
+            using var scope = ScopeFactory.CreateScope();
+            var workflow = scope.ServiceProvider.GetRequiredService<IDocumentWorkflow>();
+            await workflow.ReviewAsync(
                 document.Id,
                 document.Title,
                 document.DepartmentName,
@@ -116,6 +121,7 @@ else
         }
         catch (Exception exception)
         {
+            Logger.LogError(exception, "Could not {ReviewAction} document {DocumentId}.", approve ? "approve" : "reject", document.Id);
             _messageSeverity = Severity.Error;
             _message = $"Could not {(approve ? "approve" : "reject")} this document. It remains in the review queue. {exception.Message}";
         }

@@ -7,7 +7,7 @@ using SmartArchive.Web.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
-builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddRazorComponents().AddInteractiveServerComponents(options => options.DetailedErrors = builder.Environment.IsDevelopment());
 builder.Services.AddMudServices();
 builder.Services.AddSmartArchiveInfrastructure(builder.Configuration, builder.Environment);
 builder.Services.AddProblemDetails();

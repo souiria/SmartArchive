@@ -4,12 +4,17 @@ using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using SmartArchive.Application;
 using SmartArchive.Domain;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace SmartArchive.Infrastructure;
 
 public sealed class DocumentIntelligenceService(IConfiguration configuration) : IDocumentIntelligenceService
 {
+    private static readonly Regex DateCandidateRegex = new(
+        @"(?<!\d)(?:\d{4}[./-]\d{1,2}[./-]\d{1,2}|\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{1,2}[-\s][\p{L}]{3,}[-\s]\d{4}|[\p{L}]{3,}\s+\d{1,2},?\s+\d{4})(?!\d)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
     public async Task<AiSuggestion> AnalyzeAsync(string fileName, Stream pdf, string? suppliedText = null, CancellationToken ct = default)
     {
         var endpoint = configuration["AzureDocumentIntelligence:Endpoint"];
@@ -67,6 +72,7 @@ public sealed class DocumentIntelligenceService(IConfiguration configuration) : 
             : classificationEvidence, 2);
 
         var reference = Regex.Match(text, @"(?i)(?:ref(?:erence)?|n[°o])\s*[:#-]?\s*([A-Z0-9/-]{3,})").Groups[1].Value;
+        var documentDate = ExtractDocumentDate(text);
         var description = string.IsNullOrWhiteSpace(text)
             ? "No readable text was extracted. The suggestion is based on the file name and requires manual review."
             : text[..Math.Min(text.Length, 240)];
@@ -76,7 +82,40 @@ public sealed class DocumentIntelligenceService(IConfiguration configuration) : 
                 : "Azure Document Intelligence ran, but returned no word-level confidence. Category assignment is rule-based and requires human approval."
             : "Azure Document Intelligence is not configured. Local filename/text rules only were used; manual review is required.";
 
-        return new AiSuggestion(title, department, category, null, reference, text, string.Join(", ", new[] { department, category }), description, confidence, warning);
+        return new AiSuggestion(title, department, category, documentDate, reference, text, string.Join(", ", new[] { department, category }), description, confidence, warning);
+    }
+
+    private static DateOnly? ExtractDocumentDate(string text)
+    {
+        DateOnly? firstCandidate = null;
+        foreach (Match match in DateCandidateRegex.Matches(text))
+        {
+            if (!TryParseDocumentDate(match.Value, out var date)) continue;
+
+            var precedingText = text[..match.Index];
+            if (Regex.IsMatch(precedingText, @"(?is)\b(?:date(?:\s+(?:of|de|du|de facture|d[’']?émission))?|dated)\s*[:#-]?\s*$"))
+                return date;
+
+            firstCandidate ??= date;
+        }
+
+        return firstCandidate;
+    }
+
+    private static bool TryParseDocumentDate(string value, out DateOnly date)
+    {
+        var formats = new[]
+        {
+            "d/M/yyyy", "dd/MM/yyyy", "d-M-yyyy", "dd-MM-yyyy", "d.M.yyyy", "dd.MM.yyyy",
+            "yyyy-M-d", "yyyy-MM-dd", "yyyy/M/d", "yyyy/MM/dd", "yyyy.M.d", "yyyy.MM.dd",
+            "d/M/yy", "dd/MM/yy", "d-M-yy", "dd-MM-yy", "d.M.yy", "dd.MM.yy"
+        };
+        var candidate = value.Trim();
+        if (DateOnly.TryParseExact(candidate, formats, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out date))
+            return true;
+        if (DateOnly.TryParse(candidate, CultureInfo.GetCultureInfo("fr-FR"), DateTimeStyles.AllowWhiteSpaces, out date))
+            return true;
+        return DateOnly.TryParse(candidate, CultureInfo.GetCultureInfo("en-US"), DateTimeStyles.AllowWhiteSpaces, out date);
     }
 
     private static int CountCategorySignals(string source, string department)
