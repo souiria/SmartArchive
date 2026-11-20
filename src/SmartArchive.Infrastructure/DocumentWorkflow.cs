@@ -126,21 +126,31 @@ public sealed class DocumentWorkflow(
         await TryDeletePreviousReferenceAsync(document.Id, previousReference, newReference, ct);
     }
 
-    public async Task ReviewAsync(Guid id, string title, string department, string category, DateOnly? date, string reference, string comment, string reviewer, bool approve, CancellationToken ct = default)
+    public async Task<bool> ReviewAsync(Guid id, string title, string department, string category, DateOnly? date, string reference, string comment, string reviewer, bool approve, CancellationToken ct = default)
     {
         var document = await repository.GetAsync(id, ct) ?? throw new KeyNotFoundException();
-        if (document.Status is not (DocumentStatus.PendingValidation or DocumentStatus.UnderReview or DocumentStatus.Rejected))
+        if (document.Status is not (DocumentStatus.PendingValidation or DocumentStatus.UnderReview))
             throw new InvalidOperationException("This document is not in the review queue.");
 
+        var selectedDepartmentId = (await repository.DepartmentsAsync(ct)).FirstOrDefault(x => x.Name == department)?.Id;
         var previousReference = document.BlobReference;
-        var newReference = await storage.MoveToArchivePathAsync(
-            document.Id,
-            document.FileName,
-            previousReference,
-            document.UploadedAt,
-            department,
-            date,
-            ct);
+        var previousWarnings = document.Warnings;
+        var newReference = previousReference;
+        var storageActionSucceeded = true;
+        if (approve)
+        {
+            try
+            {
+                newReference = await storage.MoveToArchivePathAsync(document.Id, document.FileName, previousReference, document.UploadedAt, department, date, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Could not move the approved PDF into its final archive partition for document {DocumentId}; retaining its current location.", id);
+                document.Warnings = AppendWarning(document.Warnings, "The PDF could not be moved to the selected archive path. Approval will be saved and the existing file location retained.");
+                storageActionSucceeded = false;
+            }
+        }
 
         var previousStatus = document.Status;
         var previousTitle = document.Title;
@@ -156,7 +166,7 @@ public sealed class DocumentWorkflow(
 
         document.Title = title.Trim();
         document.DepartmentName = department;
-        document.DepartmentId = (await repository.DepartmentsAsync(ct)).FirstOrDefault(x => x.Name == department)?.Id ?? document.DepartmentId;
+        document.DepartmentId = selectedDepartmentId ?? document.DepartmentId;
         document.Category = category.Trim();
         document.DocumentDate = date;
         document.ReferenceNumber = reference.Trim();
@@ -165,7 +175,9 @@ public sealed class DocumentWorkflow(
         document.ValidatedAt = DateTimeOffset.UtcNow;
         document.BlobReference = newReference;
         DocumentLifecycle.Move(document, approve ? DocumentStatus.Archived : DocumentStatus.Rejected);
-        document.AuditJson = AddAudit(approve ? "ApprovedAndArchived" : "Rejected", reviewer, comment, document.AuditJson);
+        var action = approve ? "ApprovedAndArchived" : "RejectedAndPdfRemovalRequested";
+        var detail = string.IsNullOrWhiteSpace(comment) ? (approve ? "Document approved and archived." : "Document rejected; PDF removal requested.") : comment;
+        document.AuditJson = AddAudit(action, reviewer, detail, document.AuditJson);
 
         try
         {
@@ -184,15 +196,48 @@ public sealed class DocumentWorkflow(
             document.ValidatedBy = previousValidatedBy;
             document.ValidatedAt = previousValidatedAt;
             document.AuditJson = previousAudit;
+            document.Warnings = previousWarnings;
             document.BlobReference = previousReference;
             if (!string.Equals(previousReference, newReference, StringComparison.Ordinal))
-            {
                 await TryDeletePreviousReferenceAsync(document.Id, newReference, previousReference, ct);
-            }
             throw;
         }
 
-        await TryDeletePreviousReferenceAsync(document.Id, previousReference, newReference, ct);
+        if (approve)
+        {
+            await TryDeletePreviousReferenceAsync(document.Id, previousReference, newReference, ct);
+        }
+        else if (!await TryDeleteStoredFileAsync(document.Id, previousReference, ct))
+        {
+            storageActionSucceeded = false;
+            document.Warnings = AppendWarning(document.Warnings, "The rejection was saved, but the PDF could not be removed from storage; manual cleanup is required.");
+            document.AuditJson = AddAudit("PdfRemovalFailed", reviewer, "PDF removal after rejection failed.", document.AuditJson);
+            await TrySaveRemovalFailureAsync(document, ct);
+        }
+        return storageActionSucceeded;
+    }
+
+    public async Task<bool> DeleteAsync(Guid id, string actor, string comment = "", CancellationToken ct = default)
+    {
+        var document = await repository.GetAsync(id, ct) ?? throw new KeyNotFoundException();
+        if (document.Status != DocumentStatus.Deleted)
+        {
+            DocumentLifecycle.Move(document, DocumentStatus.Deleted);
+            document.ValidatedBy = actor;
+            document.ValidatedAt = DateTimeOffset.UtcNow;
+            document.ReviewerComment = comment;
+            document.AuditJson = AddAudit("Deleted", actor, string.IsNullOrWhiteSpace(comment) ? "Document deleted; audit metadata retained." : comment, document.AuditJson);
+            await repository.SaveAsync(document, ct);
+        }
+
+        if (!await TryDeleteStoredFileAsync(document.Id, document.BlobReference, ct))
+        {
+            document.Warnings = AppendWarning(document.Warnings, "The document is marked deleted, but its PDF could not be removed from storage; manual cleanup is required.");
+            document.AuditJson = AddAudit("PdfRemovalFailed", actor, "PDF removal after deletion failed.", document.AuditJson);
+            await TrySaveRemovalFailureAsync(document, ct);
+            return false;
+        }
+        return true;
     }
 
     public async Task<byte[]?> DownloadAsync(Guid id, CancellationToken ct = default)
@@ -218,6 +263,31 @@ public sealed class DocumentWorkflow(
             logger.LogWarning(exception, "Could not remove the superseded PDF copy for document {DocumentId}.", documentId);
         }
     }
+
+    private async Task<bool> TryDeleteStoredFileAsync(Guid documentId, string reference, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(reference)) return true;
+        try
+        {
+            await storage.DeleteAsync(reference, ct);
+            return true;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Could not remove the PDF for document {DocumentId} from storage.", documentId);
+            return false;
+        }
+    }
+
+    private async Task TrySaveRemovalFailureAsync(ArchiveDocument document, CancellationToken ct)
+    {
+        try { await repository.SaveAsync(document, ct); }
+        catch (Exception exception) { logger.LogError(exception, "Could not persist the PDF-removal failure audit for document {DocumentId}.", document.Id); }
+    }
+
+    private static string AppendWarning(string existing, string warning) =>
+        string.IsNullOrWhiteSpace(existing) ? warning : $"{existing}\n{warning}";
 
     private static string AddAudit(string action, string actor, string detail, string existing = "[]")
     {

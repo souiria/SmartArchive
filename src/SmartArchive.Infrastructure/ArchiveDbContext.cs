@@ -28,6 +28,7 @@ public sealed class EfDocumentRepository(ArchiveDbContext db) : IDocumentReposit
     public async Task<IReadOnlyList<ArchiveDocument>> ListAsync(string? search = null, DocumentStatus? status = null, int? departmentId = null, CancellationToken ct = default)
     {
         var query = db.Documents.AsNoTracking().AsQueryable();
+        if (status is null) query = query.Where(d => d.Status != DocumentStatus.Deleted);
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(d => d.Title.Contains(search) || d.FileName.Contains(search) || d.ReferenceNumber.Contains(search) || d.DepartmentName.Contains(search) || d.Category.Contains(search) || d.ExtractedText.Contains(search) || d.Keywords.Contains(search));
         if (status is not null) query = query.Where(d => d.Status == status);
         if (departmentId is not null) query = query.Where(d => d.DepartmentId == departmentId);

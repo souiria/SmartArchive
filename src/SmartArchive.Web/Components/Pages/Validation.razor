@@ -60,12 +60,23 @@ else
                             <MudTextField @bind-Value="document.ReferenceNumber" Label="Reference number" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
                             <MudTextField @bind-Value="document.ReviewerComment" Label="Review comment" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" FullWidth="true" />
                             @if (!string.IsNullOrEmpty(document.ExtractedText)) { <MudExpansionPanels Class="mb-3"><MudExpansionPanel Text="Text extracted from the PDF"><MudText Typo="Typo.body2" Class="text-wrap">@document.ExtractedText</MudText></MudExpansionPanel></MudExpansionPanels> }
-                            <MudStack Row="true" Spacing="2" Class="mt-2">
+                            <MudStack Row="true" Spacing="2" Class="mt-2" Style="flex-wrap:wrap">
                                 <MudButton OnClick="@(async () => await ReviewAsync(document, true))" Disabled="@(_reviewingDocumentId.HasValue)" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Verified">
                                     @(_reviewingDocumentId == document.Id ? "Saving..." : "Approve and archive")
                                 </MudButton>
-                                <MudButton OnClick="@(async () => await ReviewAsync(document, false))" Disabled="@(_reviewingDocumentId.HasValue)" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Block">Reject</MudButton>
+                                <MudButton OnClick="@(async () => await ReviewAsync(document, false))" Disabled="@(_reviewingDocumentId.HasValue)" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteForever">Reject &amp; delete PDF</MudButton>
+                                <MudButton OnClick="@(() => RequestDelete(document))" Disabled="@(_reviewingDocumentId.HasValue)" Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.DeleteOutline">Delete</MudButton>
                             </MudStack>
+                            @if (_deleteConfirmationId == document.Id)
+                            {
+                                <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mt-3">
+                                    <MudText>Delete this PDF from storage? The document’s audit record will be retained.</MudText>
+                                    <MudStack Row="true" Spacing="2" Class="mt-2">
+                                        <MudButton OnClick="@(async () => await DeleteAsync(document))" Disabled="@(_reviewingDocumentId.HasValue)" Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Delete">@(_reviewingDocumentId == document.Id ? "Deleting..." : "Confirm delete")</MudButton>
+                                        <MudButton OnClick="@CancelDelete" Disabled="@(_reviewingDocumentId.HasValue)" Variant="Variant.Text">Cancel</MudButton>
+                                    </MudStack>
+                                </MudAlert>
+                            }
                         </div>
                     </MudItem>
                 </MudGrid>
@@ -86,6 +97,7 @@ else
     private Severity _messageSeverity = Severity.Success;
     private string _reviewer = "Smart Archive reviewer";
     private Guid? _reviewingDocumentId;
+    private Guid? _deleteConfirmationId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -105,7 +117,7 @@ else
         {
             using var scope = ScopeFactory.CreateScope();
             var workflow = scope.ServiceProvider.GetRequiredService<IDocumentWorkflow>();
-            await workflow.ReviewAsync(
+            var storageActionSucceeded = await workflow.ReviewAsync(
                 document.Id,
                 document.Title,
                 document.DepartmentName,
@@ -116,14 +128,53 @@ else
                 _reviewer,
                 approve);
             _docs.Remove(document);
+            _deleteConfirmationId = null;
             _messageSeverity = Severity.Success;
-            _message = approve ? "Document approved and archived." : "Document rejected.";
+            _message = approve
+                ? storageActionSucceeded ? "Document approved and archived. The audit log was saved." : "Document approved and archived, but the PDF could not be moved to the selected folder. Check the warning and storage logs."
+                : storageActionSucceeded ? "Document rejected, its PDF was removed, and the audit log was saved." : "Document rejected and removed from the queue, but the PDF could not be deleted. Check the warning and storage logs.";
         }
         catch (Exception exception)
         {
             Logger.LogError(exception, "Could not {ReviewAction} document {DocumentId}.", approve ? "approve" : "reject", document.Id);
             _messageSeverity = Severity.Error;
             _message = $"Could not {(approve ? "approve" : "reject")} this document. It remains in the review queue. {exception.Message}";
+        }
+        finally
+        {
+            _reviewingDocumentId = null;
+        }
+    }
+
+    private void RequestDelete(ArchiveDocument document)
+    {
+        _message = string.Empty;
+        _deleteConfirmationId = document.Id;
+    }
+
+    private void CancelDelete() => _deleteConfirmationId = null;
+
+    private async Task DeleteAsync(ArchiveDocument document)
+    {
+        if (_reviewingDocumentId.HasValue) return;
+        _reviewingDocumentId = document.Id;
+        _message = string.Empty;
+        try
+        {
+            using var scope = ScopeFactory.CreateScope();
+            var workflow = scope.ServiceProvider.GetRequiredService<IDocumentWorkflow>();
+            var reason = string.IsNullOrWhiteSpace(document.ReviewerComment) ? "Manually deleted from the validation queue." : document.ReviewerComment;
+            var pdfRemoved = await workflow.DeleteAsync(document.Id, _reviewer, reason);
+            _docs.Remove(document);
+            _deleteConfirmationId = null;
+            _messageSeverity = Severity.Success;
+            _message = pdfRemoved ? "Document deleted. The PDF was removed and its audit record retained." : "Document marked deleted and its audit record retained, but the PDF could not be removed. Check the warning and storage logs.";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Could not delete document {DocumentId}.", document.Id);
+            _messageSeverity = Severity.Error;
+            _message = $"Could not delete this document. It remains in the review queue. {exception.Message}";
         }
         finally
         {

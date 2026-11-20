@@ -38,8 +38,14 @@ app.MapPost("/api/documents/{id:guid}/review", async (Guid id, ReviewRequest bod
     catch (KeyNotFoundException) { return Results.NotFound(); }
     catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
+app.MapDelete("/api/documents/{id:guid}", async (Guid id, IDocumentWorkflow workflow, IArchiveSettingsService settings) =>
+{
+    try { var pdfRemoved = await workflow.DeleteAsync(id, (await settings.GetAsync()).DisplayName, "Deleted from the document review center."); return Results.Ok(new { deleted = true, pdfRemoved, auditRetained = true }); }
+    catch (KeyNotFoundException) { return Results.NotFound(); }
+    catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
+});
 app.MapPost("/api/documents/{id:guid}/retry", async (Guid id, IDocumentWorkflow workflow) => { try { await workflow.RetryAnalysisAsync(id); return Results.NoContent(); } catch (KeyNotFoundException) { return Results.NotFound(); } });
-app.MapGet("/api/documents/{id:guid}/file", async (Guid id, IDocumentWorkflow workflow, IDocumentRepository repo) => { var doc = await repo.GetAsync(id); if (doc is null) return Results.NotFound(); var bytes = await workflow.DownloadAsync(id); return bytes is null ? Results.NotFound() : Results.File(bytes, contentType: "application/pdf", enableRangeProcessing: true); });
+app.MapGet("/api/documents/{id:guid}/file", async (Guid id, IDocumentWorkflow workflow, IDocumentRepository repo) => { var doc = await repo.GetAsync(id); if (doc is null || doc.Status is SmartArchive.Domain.DocumentStatus.Rejected or SmartArchive.Domain.DocumentStatus.Deleted) return Results.NotFound(); var bytes = await workflow.DownloadAsync(id); return bytes is null ? Results.NotFound() : Results.File(bytes, contentType: "application/pdf", enableRangeProcessing: true); });
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();
 

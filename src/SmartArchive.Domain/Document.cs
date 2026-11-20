@@ -1,6 +1,6 @@
 namespace SmartArchive.Domain;
 
-public enum DocumentStatus { Uploaded, Processing, PendingValidation, UnderReview, Approved, Rejected, Archived, ProcessingFailed }
+public enum DocumentStatus { Uploaded, Processing, PendingValidation, UnderReview, Approved, Rejected, Archived, ProcessingFailed, Deleted }
 
 public sealed class Department
 {
@@ -52,7 +52,9 @@ public static class DocumentLifecycle
 {
     public static void Move(ArchiveDocument document, DocumentStatus next)
     {
-        var allowed = (document.Status, next) switch
+        var allowed = next == DocumentStatus.Deleted
+            ? document.Status != DocumentStatus.Deleted
+            : (document.Status, next) switch
         {
             (DocumentStatus.Uploaded, DocumentStatus.Processing) => true,
             (DocumentStatus.Processing, DocumentStatus.PendingValidation or DocumentStatus.ProcessingFailed) => true,

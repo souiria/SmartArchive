@@ -30,7 +30,8 @@ public interface IDocumentWorkflow
 {
     Task<UploadResult> UploadAsync(string fileName, string contentType, Stream stream, string uploadedBy, CancellationToken ct = default);
     Task RetryAnalysisAsync(Guid id, CancellationToken ct = default);
-    Task ReviewAsync(Guid id, string title, string department, string category, DateOnly? date, string reference, string comment, string reviewer, bool approve, CancellationToken ct = default);
+    Task<bool> ReviewAsync(Guid id, string title, string department, string category, DateOnly? date, string reference, string comment, string reviewer, bool approve, CancellationToken ct = default);
+    Task<bool> DeleteAsync(Guid id, string actor, string comment = "", CancellationToken ct = default);
     Task<byte[]?> DownloadAsync(Guid id, CancellationToken ct = default);
 }
 
