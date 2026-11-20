@@ -4,19 +4,87 @@
 @using SmartArchive.Domain
 @inject IDocumentRepository Repository
 @inject IDocumentWorkflow Workflow
-<PageTitle>Centre de validation · Smart Archive</PageTitle>
-<MudStack Class="sa-page-header"><MudText Typo="Typo.overline" Class="sa-eyebrow">CONTRÔLE HUMAIN OBLIGATOIRE</MudText><MudText Typo="Typo.h4" Class="sa-page-title">Centre de validation</MudText><MudText Class="sa-page-subtitle">Comparez le PDF aux suggestions et corrigez les champs avant approbation.</MudText></MudStack>
-@if (_docs.Count==0) { <MudPaper Outlined="true" Class="sa-surface sa-empty-state"><MudIcon Icon="@Icons.Material.Filled.TaskAlt" Color="Color.Success" Size="Size.Large" /><MudText Typo="Typo.h6" Class="sa-panel-title mt-3">La file de validation est vide</MudText><MudText Class="sa-page-subtitle mb-5">Les nouveaux dépôts apparaîtront ici après analyse.</MudText><MudButton Href="/depot" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload">Déposer un document</MudButton></MudPaper> }
-else { <MudStack Spacing="4">@foreach(var d in _docs) { <MudPaper Outlined="true" Class="sa-surface sa-validation-card"><MudGrid Spacing="0"><MudItem xs="12" lg="7"><div class="sa-preview-pane"><MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="sa-preview-toolbar"><MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2"><MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" /><MudText Typo="Typo.body2">@d.FileName</MudText></MudStack><MudButton Href="@($"/api/documents/{d.Id}/file")" Target="_blank" Variant="Variant.Text" EndIcon="@Icons.Material.Filled.OpenInNew">Ouvrir</MudButton></MudStack><iframe title="Aperçu PDF : @d.FileName" class="sa-preview-frame" src="/api/documents/@d.Id/file"></iframe></div></MudItem><MudItem xs="12" lg="5"><div class="sa-validation-form"><MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AutoAwesome" Class="sa-review-alert mb-3"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">Suggestions IA — indicatives</MudText><MudChip T="string" Size="Size.Small" Color="@ConfidenceColor(d.Confidence)" Variant="Variant.Filled">@d.Confidence.ToString("P0")</MudChip></MudStack><MudText Typo="Typo.caption">Le score n’est pas une garantie de justesse ; l’approbation humaine reste requise.</MudText></MudAlert>
-                    @if(!string.IsNullOrWhiteSpace(d.Warnings)){<MudAlert Severity="Severity.Warning" Dense="true" Variant="Variant.Outlined" Class="mb-3">@d.Warnings</MudAlert>}
-                    <MudTextField @bind-Value="d.Title" Label="Titre du document" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
-                    <MudSelect T="string" @bind-Value="d.DepartmentName" Label="Département suggéré" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true">@foreach(var dep in _departments){<MudSelectItem T="string" Value="@dep.Name">@dep.Name</MudSelectItem>}</MudSelect>
-                    <MudTextField @bind-Value="d.Category" Label="Catégorie" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
-                    <MudDatePicker Date="ToDateTime(d.DocumentDate)" DateChanged="@(value => UpdateDate(d,value))" Label="Date du document" DateFormat="dd/MM/yyyy" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
-                    <MudTextField @bind-Value="d.ReferenceNumber" Label="Numéro de référence" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
-                    <MudTextField @bind-Value="d.ReviewerComment" Label="Commentaire de validation" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" FullWidth="true" />
-                    @if(!string.IsNullOrEmpty(d.ExtractedText)){<MudExpansionPanels Class="mb-3"><MudExpansionPanel Text="Texte extrait par l’analyse"><MudText Typo="Typo.body2" Class="text-wrap">@d.ExtractedText</MudText></MudExpansionPanel></MudExpansionPanels>}
-                    <MudStack Row="true" Spacing="2" Class="mt-2"><MudButton OnClick="()=>Review(d,true)" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Verified">Approuver et archiver</MudButton><MudButton OnClick="()=>Review(d,false)" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Block">Rejeter</MudButton></MudStack>
-                </div></MudItem></MudGrid></MudPaper> }</MudStack> }
-@if(!string.IsNullOrEmpty(_message)){<MudAlert Severity="Severity.Success" Variant="Variant.Filled" Class="mt-4">@_message</MudAlert>}
-@code { private List<ArchiveDocument> _docs=[]; private List<Department> _departments=[]; private string _message=""; protected override async Task OnInitializedAsync(){_departments=(await Repository.DepartmentsAsync()).ToList(); _docs=(await Repository.ListAsync(status:DocumentStatus.PendingValidation)).ToList();} private async Task Review(ArchiveDocument d,bool approve){await Workflow.ReviewAsync(d.Id,d.Title,d.DepartmentName,d.Category,d.DocumentDate,d.ReferenceNumber,d.ReviewerComment??"","Validateur local",approve); _docs.Remove(d); _message=approve?"Document approuvé et archivé.":"Document rejeté.";} private static DateTime? ToDateTime(DateOnly? value)=>value.HasValue?value.Value.ToDateTime(TimeOnly.MinValue):null; private static void UpdateDate(ArchiveDocument d,DateTime? value)=>d.DocumentDate=value.HasValue?DateOnly.FromDateTime(value.Value):null; private static Color ConfidenceColor(double value)=>value>=.8?Color.Success:value>=.55?Color.Warning:Color.Error; }
+
+<PageTitle>Review center · Smart Archive</PageTitle>
+
+<MudStack Class="sa-page-header">
+    <MudText Typo="Typo.overline" Class="sa-eyebrow">HUMAN REVIEW REQUIRED</MudText>
+    <MudText Typo="Typo.h4" Class="sa-page-title">Review center</MudText>
+    <MudText Class="sa-page-subtitle">Compare each PDF with its suggestions and correct the fields before approval.</MudText>
+</MudStack>
+
+@if (_docs.Count == 0)
+{
+    <MudPaper Outlined="true" Class="sa-surface sa-empty-state">
+        <MudIcon Icon="@Icons.Material.Filled.TaskAlt" Color="Color.Success" Size="Size.Large" />
+        <MudText Typo="Typo.h6" Class="sa-panel-title mt-3">The review queue is empty</MudText>
+        <MudText Class="sa-page-subtitle mb-5">New uploads will appear here after analysis.</MudText>
+        <MudButton Href="/depot" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload">Upload a document</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudStack Spacing="4">
+        @foreach (var document in _docs)
+        {
+            <MudPaper Outlined="true" Class="sa-surface sa-validation-card">
+                <MudGrid Spacing="0">
+                    <MudItem xs="12" lg="7">
+                        <div class="sa-preview-pane">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="sa-preview-toolbar">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2"><MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" /><MudText Typo="Typo.body2">@document.FileName</MudText></MudStack>
+                                <MudButton Href="@($"/api/documents/{document.Id}/file")" Target="_blank" Variant="Variant.Text" EndIcon="@Icons.Material.Filled.OpenInNew">Open PDF</MudButton>
+                            </MudStack>
+                            <iframe title="PDF preview: @document.FileName" class="sa-preview-frame" src="/api/documents/@document.Id/file"></iframe>
+                        </div>
+                    </MudItem>
+                    <MudItem xs="12" lg="5">
+                        <div class="sa-validation-form">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.AutoAwesome" Class="sa-review-alert mb-3">
+                                <MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">AI suggestions — for guidance</MudText><MudChip T="string" Size="Size.Small" Color="ConfidenceColor(document.Confidence)" Variant="Variant.Filled">@document.Confidence.ToString("P0")</MudChip></MudStack>
+                                <MudText Typo="Typo.caption">The score does not guarantee accuracy. Human approval is still required.</MudText>
+                            </MudAlert>
+                            @if (!string.IsNullOrWhiteSpace(document.Warnings)) { <MudAlert Severity="Severity.Warning" Dense="true" Variant="Variant.Outlined" Class="mb-3">@document.Warnings</MudAlert> }
+                            <MudTextField @bind-Value="document.Title" Label="Document title" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
+                            <MudSelect T="string" @bind-Value="document.DepartmentName" Label="Suggested department" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true">@foreach (var department in _departments) { <MudSelectItem T="string" Value="@department.Name">@department.Name</MudSelectItem> }</MudSelect>
+                            <MudTextField @bind-Value="document.Category" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
+                            <MudDatePicker Date="ToDateTime(document.DocumentDate)" DateChanged="@(value => UpdateDate(document, value))" Label="Document date" DateFormat="MM/dd/yyyy" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudTextField @bind-Value="document.ReferenceNumber" Label="Reference number" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
+                            <MudTextField @bind-Value="document.ReviewerComment" Label="Review comment" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" FullWidth="true" />
+                            @if (!string.IsNullOrEmpty(document.ExtractedText)) { <MudExpansionPanels Class="mb-3"><MudExpansionPanel Text="Text extracted from the PDF"><MudText Typo="Typo.body2" Class="text-wrap">@document.ExtractedText</MudText></MudExpansionPanel></MudExpansionPanels> }
+                            <MudStack Row="true" Spacing="2" Class="mt-2">
+                                <MudButton OnClick="() => Review(document, true)" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Verified">Approve and archive</MudButton>
+                                <MudButton OnClick="() => Review(document, false)" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Block">Reject</MudButton>
+                            </MudStack>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        }
+    </MudStack>
+}
+
+@if (!string.IsNullOrEmpty(_message)) { <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Class="mt-4">@_message</MudAlert> }
+
+@code {
+    private List<ArchiveDocument> _docs = [];
+    private List<Department> _departments = [];
+    private string _message = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _departments = (await Repository.DepartmentsAsync()).ToList();
+        _docs = (await Repository.ListAsync(status: DocumentStatus.PendingValidation)).ToList();
+    }
+
+    private async Task Review(ArchiveDocument document, bool approve)
+    {
+        await Workflow.ReviewAsync(document.Id, document.Title, document.DepartmentName, document.Category, document.DocumentDate, document.ReferenceNumber, document.ReviewerComment ?? string.Empty, "Local reviewer", approve);
+        _docs.Remove(document);
+        _message = approve ? "Document approved and archived." : "Document rejected.";
+    }
+
+    private static DateTime? ToDateTime(DateOnly? value) => value.HasValue ? value.Value.ToDateTime(TimeOnly.MinValue) : null;
+    private static void UpdateDate(ArchiveDocument document, DateTime? value) => document.DocumentDate = value.HasValue ? DateOnly.FromDateTime(value.Value) : null;
+    private static Color ConfidenceColor(double value) => value >= .8 ? Color.Success : value >= .55 ? Color.Warning : Color.Error;
+}

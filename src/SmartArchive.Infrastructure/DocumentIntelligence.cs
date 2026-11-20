@@ -21,22 +21,31 @@ public sealed class DocumentIntelligenceService(IConfiguration configuration) : 
             var operation = await client.AnalyzeDocumentAsync(WaitUntil.Completed, "prebuilt-read", BinaryData.FromBytes(ms.ToArray()), cancellationToken: ct);
             text = operation.Value.Content ?? "";
         }
+
         var source = (fileName + " " + text).ToLowerInvariant();
         var (department, category) = source switch
         {
-            var x when x.Contains("maintenance") || x.Contains("intervention") || x.Contains("panne") => ("Maintenance", "Rapport d’intervention"),
-            var x when x.Contains("quality") || x.Contains("qualité") || x.Contains("audit") || x.Contains("non-conform") => ("Quality", "Rapport qualité"),
-            var x when x.Contains("production") || x.Contains("fabrication") => ("Production", "Rapport de production"),
-            var x when x.Contains("incident") || x.Contains("informatique") || x.Contains("it ") => ("IT", "Incident informatique"),
-            var x when x.Contains("delivery") || x.Contains("livraison") || x.Contains("logistique") => ("Logistics", "Bon de livraison"),
-            var x when x.Contains("invoice") || x.Contains("facture") => ("Finance", "Facture"),
-            var x when x.Contains("human resources") || x.Contains("ressources humaines") || x.Contains("rh ") => ("Human Resources", "Document RH"),
-            _ => ("General Administration", "Document général")
+            var x when x.Contains("maintenance") || x.Contains("intervention") || x.Contains("panne") => ("Maintenance", "Service report"),
+            var x when x.Contains("quality") || x.Contains("qualité") || x.Contains("audit") || x.Contains("non-conform") => ("Quality", "Quality report"),
+            var x when x.Contains("production") || x.Contains("fabrication") => ("Production", "Production report"),
+            var x when x.Contains("incident") || x.Contains("informatique") || x.Contains("it ") => ("IT", "IT incident"),
+            var x when x.Contains("delivery") || x.Contains("livraison") || x.Contains("logistique") => ("Logistics", "Delivery note"),
+            var x when x.Contains("invoice") || x.Contains("facture") => ("Finance", "Invoice"),
+            var x when x.Contains("human resources") || x.Contains("ressources humaines") || x.Contains("rh ") => ("Human Resources", "HR document"),
+            _ => ("General Administration", "General document")
         };
+
         var title = Path.GetFileNameWithoutExtension(fileName).Replace('_', ' ').Replace('-', ' ');
-        if (string.IsNullOrWhiteSpace(title)) title = "Document sans titre";
+        if (string.IsNullOrWhiteSpace(title)) title = "Untitled document";
         var confidence = string.IsNullOrWhiteSpace(text) ? .38 : .72;
         var reference = Regex.Match(text, @"(?i)(?:ref(?:erence)?|n[°o])\s*[:#-]?\s*([A-Z0-9/-]{3,})").Groups[1].Value;
-        return new AiSuggestion(title, department, category, null, reference, text, string.Join(", ", new[] { department, category }), string.IsNullOrWhiteSpace(text) ? "Analyse locale : OCR indisponible. Vérifiez manuellement les champs suggérés." : text[..Math.Min(text.Length, 240)], confidence, string.IsNullOrWhiteSpace(text) ? "Aucun texte OCR disponible : vérification manuelle requise." : "Classification indicative basée sur le texte/fichier ; approbation humaine obligatoire.");
+        var description = string.IsNullOrWhiteSpace(text)
+            ? "Local analysis: OCR is unavailable. Manually verify the suggested fields."
+            : text[..Math.Min(text.Length, 240)];
+        var warning = string.IsNullOrWhiteSpace(text)
+            ? "No OCR text is available. Manual review is required."
+            : "Classification is a suggestion based on the text and file name. Human approval is required.";
+
+        return new AiSuggestion(title, department, category, null, reference, text, string.Join(", ", new[] { department, category }), description, confidence, warning);
     }
 }

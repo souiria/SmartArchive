@@ -1,15 +1,154 @@
 @page "/depot"
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Forms
 @using SmartArchive.Application
 @inject IDocumentWorkflow Workflow
-<PageTitle>Dépôt de documents · Smart Archive</PageTitle>
-<MudStack Class="sa-page-header"><MudText Typo="Typo.overline" Class="sa-eyebrow">INGESTION DOCUMENTAIRE</MudText><MudText Typo="Typo.h4" Class="sa-page-title">Déposer des documents</MudText><MudText Class="sa-page-subtitle">Importez un ou plusieurs PDF. Chaque suggestion IA sera vérifiée par un valideur avant archivage.</MudText></MudStack>
+
+<PageTitle>Upload documents · Smart Archive</PageTitle>
+
+<MudStack Class="sa-page-header">
+    <MudText Typo="Typo.overline" Class="sa-eyebrow">DOCUMENT INTAKE</MudText>
+    <MudText Typo="Typo.h4" Class="sa-page-title">Upload documents</MudText>
+    <MudText Class="sa-page-subtitle">Choose one or more PDF files. AI suggestions are reviewed by a person before a document is archived.</MudText>
+</MudStack>
+
 <MudPaper Outlined="true" Class="sa-surface pa-5 pa-md-7" Style="max-width:900px">
-    <InputFile id="pdfInput" OnChange="UploadFiles" accept="application/pdf,.pdf" multiple class="sa-upload-input" />
-    <label for="pdfInput" class="sa-upload-zone"><MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" /><MudText Typo="Typo.subtitle1" Class="sa-upload-title">Glissez vos PDF ici ou cliquez pour parcourir</MudText><MudText Class="sa-upload-help">PDF uniquement · maximum 50 Mo par fichier · sélection multiple</MudText></label>
-    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 mb-5">Les doublons exacts sont détectés par empreinte SHA-256.</MudText>
-    @if (_busy) { <MudProgressLinear Indeterminate="true" Color="Color.Primary" Rounded="true" Class="mb-4" /><MudText Typo="Typo.body2">Import et analyse en cours…</MudText> }
-    @if (!string.IsNullOrEmpty(_message)) { <MudAlert Severity="@(_error ? Severity.Error : Severity.Success)" Variant="Variant.Outlined" Class="my-4">@_message</MudAlert> }
-    @if (_uploaded.Count > 0) { <MudDivider Class="my-5" /><MudText Typo="Typo.h6" Class="sa-panel-title mb-3">Résultat du dépôt</MudText><MudList T="string" Dense="true">@foreach(var f in _uploaded) { <MudListItem T="string" Icon="@Icons.Material.Filled.PictureAsPdf" IconColor="Color.Error"><MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="w-100"><MudText Typo="Typo.body2">@f.FileName</MudText><MudChip T="string" Size="Size.Small" Color="@(f.Duplicate ? Color.Warning : Color.Info)" Variant="Variant.Outlined">@(f.Duplicate ? "Doublon détecté" : "En file de validation")</MudChip></MudStack></MudListItem> }</MudList><MudButton Href="/validation" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward" Class="mt-4">Accéder à la file de validation</MudButton> }
+    <div class="sa-upload-zone">
+        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Size="Size.Large" Color="Color.Primary" />
+        <MudText Typo="Typo.subtitle1" Class="sa-upload-title">Choose one or more PDF files</MudText>
+        <InputFile id="pdfInput" OnChange="FilesSelected" accept="application/pdf,.pdf" multiple class="sa-upload-input" aria-label="Choose PDF files" disabled="@_busy" />
+        <MudText Class="sa-upload-help">PDF only · up to 50 MiB per file · select multiple files</MudText>
+    </div>
+    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 mb-5">Exact duplicates are identified using a SHA-256 fingerprint.</MudText>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <MudAlert Severity="@(_error ? Severity.Error : Severity.Info)" Variant="Variant.Outlined" Class="my-4">@_message</MudAlert>
+    }
+
+    @if (_selectedFiles.Count > 0)
+    {
+        <MudPaper Outlined="true" Class="pa-4 my-4">
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Selected files (@_selectedFiles.Count)</MudText>
+            <MudList T="string" Dense="true">
+                @foreach (var file in _selectedFiles)
+                {
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.PictureAsPdf" IconColor="Color.Error">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="w-100">
+                            <MudText Typo="Typo.body2">@file.Name</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatSize(file.Size)</MudText>
+                        </MudStack>
+                    </MudListItem>
+                }
+            </MudList>
+            <MudButton OnClick="UploadFiles" Disabled="@_busy" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload" Class="mt-3">
+                Upload selected files
+            </MudButton>
+        </MudPaper>
+    }
+
+    @if (_busy)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Rounded="true" Class="mb-3" />
+        <MudText Typo="Typo.body2">Uploading and analyzing PDFs… This may take a moment.</MudText>
+    }
+
+    @if (_uploaded.Count > 0)
+    {
+        <MudDivider Class="my-5" />
+        <MudText Typo="Typo.h6" Class="sa-panel-title mb-3">Upload results</MudText>
+        <MudList T="string" Dense="true">
+            @foreach (var file in _uploaded)
+            {
+                <MudListItem T="string" Icon="@Icons.Material.Filled.PictureAsPdf" IconColor="Color.Error">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="w-100">
+                        <MudText Typo="Typo.body2">@file.FileName</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@(file.Duplicate ? Color.Warning : Color.Info)" Variant="Variant.Outlined">@(file.Duplicate ? "Duplicate detected" : "Queued for review")</MudChip>
+                    </MudStack>
+                </MudListItem>
+            }
+        </MudList>
+        <MudButton Href="/validation" Variant="Variant.Filled" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward" Class="mt-4">Open review queue</MudButton>
+    }
 </MudPaper>
-@code { private bool _busy, _error; private string _message=""; private List<SmartArchive.Domain.UploadResult> _uploaded=[]; private async Task UploadFiles(InputFileChangeEventArgs e) { _busy=true; _message=""; _uploaded=[]; _error=false; try { foreach(var file in e.GetMultipleFiles(20)) { await using var stream=file.OpenReadStream(50*1024*1024); _uploaded.Add(await Workflow.UploadAsync(file.Name,file.ContentType,stream,"Opérateur local")); } _message=$"{_uploaded.Count} fichier(s) traité(s). Tous les nouveaux documents attendent une validation humaine."; } catch(Exception ex) { _error=true; _message=ex.Message; } finally { _busy=false; } } }
+
+@code {
+    private const long MaxFileSize = 50L * 1024 * 1024;
+    private const int MaxFileCount = 20;
+    private bool _busy;
+    private bool _error;
+    private string _message = string.Empty;
+    private IReadOnlyList<IBrowserFile> _selectedFiles = Array.Empty<IBrowserFile>();
+    private readonly List<SmartArchive.Domain.UploadResult> _uploaded = [];
+
+    private Task FilesSelected(InputFileChangeEventArgs args)
+    {
+        _uploaded.Clear();
+        _error = false;
+        try
+        {
+            var files = args.GetMultipleFiles(MaxFileCount);
+            var invalidType = files.FirstOrDefault(file => !file.Name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase));
+            if (invalidType is not null)
+            {
+                _selectedFiles = Array.Empty<IBrowserFile>();
+                _error = true;
+                _message = $"{invalidType.Name} is not a PDF. Choose PDF files only.";
+                return Task.CompletedTask;
+            }
+
+            var tooLarge = files.FirstOrDefault(file => file.Size > MaxFileSize);
+            if (tooLarge is not null)
+            {
+                _selectedFiles = Array.Empty<IBrowserFile>();
+                _error = true;
+                _message = $"{tooLarge.Name} exceeds the 50 MiB per-file limit.";
+                return Task.CompletedTask;
+            }
+
+            _selectedFiles = files;
+            _message = files.Count == 1 ? "1 PDF selected. Select Upload selected files to begin." : $"{files.Count} PDFs selected. Select Upload selected files to begin.";
+        }
+        catch (InvalidOperationException)
+        {
+            _selectedFiles = Array.Empty<IBrowserFile>();
+            _error = true;
+            _message = $"Choose no more than {MaxFileCount} files at a time.";
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task UploadFiles()
+    {
+        if (_selectedFiles.Count == 0 || _busy)
+            return;
+
+        _busy = true;
+        _message = string.Empty;
+        _uploaded.Clear();
+        _error = false;
+        try
+        {
+            foreach (var file in _selectedFiles)
+            {
+                await using var stream = file.OpenReadStream(MaxFileSize);
+                _uploaded.Add(await Workflow.UploadAsync(file.Name, file.ContentType, stream, "Local operator"));
+            }
+
+            _message = $"{_uploaded.Count} file(s) processed. New documents are waiting for human review.";
+            _selectedFiles = Array.Empty<IBrowserFile>();
+        }
+        catch (Exception ex)
+        {
+            _error = true;
+            _message = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string FormatSize(long size) => size < 1024 * 1024 ? $"{size / 1024.0:N0} KiB" : $"{size / (1024.0 * 1024):N1} MiB";
+}

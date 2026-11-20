@@ -22,19 +22,19 @@ app.MapGet("/api/documents", async (string? q, string? status, IDocumentReposito
 app.MapGet("/api/dashboard", async (IDocumentRepository repo) => Results.Ok(await repo.StatisticsAsync()));
 app.MapPost("/api/documents/upload", async (HttpRequest request, IDocumentWorkflow workflow) =>
 {
-    if (!request.HasFormContentType || request.Form.Files.Count == 0) return Results.BadRequest(new { error = "Sélectionnez un fichier PDF." });
+    if (!request.HasFormContentType || request.Form.Files.Count == 0) return Results.BadRequest(new { error = "Select a PDF file." });
     var results = new List<object>();
     foreach (var file in request.Form.Files)
     {
         await using var stream = file.OpenReadStream();
-        try { results.Add(await workflow.UploadAsync(file.FileName, file.ContentType, stream, "Opérateur local")); }
+        try { results.Add(await workflow.UploadAsync(file.FileName, file.ContentType, stream, "Local operator")); }
         catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
     }
     return Results.Ok(results);
 }).DisableAntiforgery();
 app.MapPost("/api/documents/{id:guid}/review", async (Guid id, ReviewRequest body, IDocumentWorkflow workflow) =>
 {
-    try { await workflow.ReviewAsync(id, body.Title, body.Department, body.Category, body.DocumentDate, body.ReferenceNumber, body.Comment ?? "", "Validateur local", body.Approve); return Results.NoContent(); }
+    try { await workflow.ReviewAsync(id, body.Title, body.Department, body.Category, body.DocumentDate, body.ReferenceNumber, body.Comment ?? "", "Local reviewer", body.Approve); return Results.NoContent(); }
     catch (KeyNotFoundException) { return Results.NotFound(); }
     catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });

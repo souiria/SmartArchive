@@ -4,42 +4,88 @@
 @using SmartArchive.Domain
 @using System.Globalization
 @inject IDocumentRepository Repository
-<PageTitle>Vue d’ensemble · Smart Archive</PageTitle>
+
+<PageTitle>Overview · Smart Archive</PageTitle>
 
 <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="sa-page-header" Wrap="Wrap.Wrap">
-    <div><MudText Typo="Typo.overline" Class="sa-eyebrow">SEWS MAROC · GESTION DOCUMENTAIRE</MudText><MudText Typo="Typo.h4" Class="sa-page-title">Vue d’ensemble</MudText><MudText Class="sa-page-subtitle">Suivez le traitement des documents et les validations en attente.</MudText></div>
-    <MudButton Href="/depot" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload" Size="Size.Medium">Déposer des documents</MudButton>
+    <div>
+        <MudText Typo="Typo.overline" Class="sa-eyebrow">SEWS MOROCCO · DOCUMENT MANAGEMENT</MudText>
+        <MudText Typo="Typo.h4" Class="sa-page-title">Overview</MudText>
+        <MudText Class="sa-page-subtitle">Track document processing and pending reviews.</MudText>
+    </div>
+    <MudButton Href="/depot" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload" Size="Size.Medium">Upload documents</MudButton>
 </MudStack>
-@if (_stats is null) { <MudProgressLinear Indeterminate="true" Color="Color.Primary" /> } else {
+
+@if (_stats is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
     <MudGrid Spacing="3" Class="mb-4">
-        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Documents archivés</MudText><div class="sa-stat-icon" style="background:#e9f2fa;color:#225e90"><MudIcon Icon="@Icons.Material.Filled.Inventory2" /></div></MudStack><MudText Class="sa-stat-value">@Get("Total")</MudText><MudText Class="sa-stat-caption">Documents approuvés</MudText></MudPaper></MudItem>
-        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">À valider</MudText><div class="sa-stat-icon" style="background:#fff3dc;color:#a56a00"><MudIcon Icon="@Icons.Material.Filled.PendingActions" /></div></MudStack><MudText Class="sa-stat-value">@Get("Pending")</MudText><MudText Class="sa-stat-caption">En attente d’une revue humaine</MudText></MudPaper></MudItem>
-        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Déposés aujourd’hui</MudText><div class="sa-stat-icon" style="background:#e6f5ee;color:#218159"><MudIcon Icon="@Icons.Material.Filled.CloudDone" /></div></MudStack><MudText Class="sa-stat-value">@Get("Today")</MudText><MudText Class="sa-stat-caption">Nouveaux documents</MudText></MudPaper></MudItem>
-        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Rejetés</MudText><div class="sa-stat-icon" style="background:#faeaea;color:#ac4848"><MudIcon Icon="@Icons.Material.Filled.ReportProblem" /></div></MudStack><MudText Class="sa-stat-value">@Get("Rejected")</MudText><MudText Class="sa-stat-caption">À corriger ou compléter</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Archived documents</MudText><div class="sa-stat-icon" style="background:#e9f2fa;color:#225e90"><MudIcon Icon="@Icons.Material.Filled.Inventory2" /></div></MudStack><MudText Class="sa-stat-value">@Get("Total")</MudText><MudText Class="sa-stat-caption">Approved documents</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Pending review</MudText><div class="sa-stat-icon" style="background:#fff3dc;color:#a56a00"><MudIcon Icon="@Icons.Material.Filled.PendingActions" /></div></MudStack><MudText Class="sa-stat-value">@Get("Pending")</MudText><MudText Class="sa-stat-caption">Awaiting human review</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Uploaded today</MudText><div class="sa-stat-icon" style="background:#e6f5ee;color:#218159"><MudIcon Icon="@Icons.Material.Filled.CloudDone" /></div></MudStack><MudText Class="sa-stat-value">@Get("Today")</MudText><MudText Class="sa-stat-caption">New documents</MudText></MudPaper></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudPaper Outlined="true" Class="sa-surface sa-stat-card"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Class="sa-stat-label">Rejected</MudText><div class="sa-stat-icon" style="background:#faeaea;color:#ac4848"><MudIcon Icon="@Icons.Material.Filled.ReportProblem" /></div></MudStack><MudText Class="sa-stat-value">@Get("Rejected")</MudText><MudText Class="sa-stat-caption">Needs correction or additional information</MudText></MudPaper></MudItem>
     </MudGrid>
+
     <MudGrid Spacing="3">
-        <MudItem xs="12" lg="8"><MudPaper Outlined="true" Class="sa-surface">
-            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="pa-4"><div><MudText Class="sa-panel-title">Documents récents</MudText><MudText Class="sa-panel-subtitle">Derniers éléments déposés dans la plateforme</MudText></div><MudButton Href="/archive" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward">Voir l’archive</MudButton></MudStack>
-            <MudTable Items="_recent" Hover="true" Dense="true" Elevation="0" Class="sa-table">
-                <HeaderContent><MudTh>Document</MudTh><MudTh>Département</MudTh><MudTh>Date de dépôt</MudTh><MudTh>État</MudTh></HeaderContent>
-                <RowTemplate Context="doc"><MudTd DataLabel="Document"><MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2"><MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" /><div><div class="sa-document-title">@doc.Title</div><div class="sa-file-name">@doc.FileName</div></div></MudStack></MudTd><MudTd DataLabel="Département">@doc.DepartmentName</MudTd><MudTd DataLabel="Date">@doc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.GetCultureInfo("fr-FR"))</MudTd><MudTd DataLabel="État"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="StatusColor(doc.Status)" Class="sa-status">@StatusText(doc.Status)</MudChip></MudTd></RowTemplate>
-                <NoRecordsContent><MudText Class="pa-6 sa-empty-state">Aucun document pour l’instant. Déposez un premier PDF pour démarrer.</MudText></NoRecordsContent>
-            </MudTable>
-        </MudPaper></MudItem>
-        <MudItem xs="12" lg="4"><MudPaper Outlined="true" Class="sa-surface pa-4"><MudText Class="sa-panel-title">Flux par département</MudText><MudText Class="sa-panel-subtitle mb-4">Documents actuellement archivés</MudText>
-            @foreach (var pair in DepartmentStats()) { <div class="sa-dept-row"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">@pair.Name</MudText><MudText Typo="Typo.body2" Style="font-weight:700">@pair.Count</MudText></MudStack><MudProgressLinear Value="@Bar(pair.Count)" Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mt-2 mb-4" /></div> }
-            @if (DepartmentStats().Count == 0) { <MudText Class="sa-empty-state">Les départements apparaîtront avec les premiers documents archivés.</MudText> }
-        </MudPaper></MudItem>
+        <MudItem xs="12" lg="8">
+            <MudPaper Outlined="true" Class="sa-surface">
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="pa-4"><div><MudText Class="sa-panel-title">Recent documents</MudText><MudText Class="sa-panel-subtitle">Latest documents added to the platform</MudText></div><MudButton Href="/archive" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward">View archive</MudButton></MudStack>
+                <MudTable Items="_recent" Hover="true" Dense="true" Elevation="0" Class="sa-table">
+                    <HeaderContent><MudTh>Document</MudTh><MudTh>Department</MudTh><MudTh>Upload date</MudTh><MudTh>Status</MudTh></HeaderContent>
+                    <RowTemplate Context="doc"><MudTd DataLabel="Document"><MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2"><MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" /><div><div class="sa-document-title">@doc.Title</div><div class="sa-file-name">@doc.FileName</div></div></MudStack></MudTd><MudTd DataLabel="Department">@doc.DepartmentName</MudTd><MudTd DataLabel="Date">@doc.UploadedAt.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.GetCultureInfo("en-US"))</MudTd><MudTd DataLabel="Status"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="StatusColor(doc.Status)" Class="sa-status">@StatusText(doc.Status)</MudChip></MudTd></RowTemplate>
+                    <NoRecordsContent><MudText Class="pa-6 sa-empty-state">No documents yet. Upload a PDF to get started.</MudText></NoRecordsContent>
+                </MudTable>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" lg="4">
+            <MudPaper Outlined="true" Class="sa-surface pa-4"><MudText Class="sa-panel-title">Documents by department</MudText><MudText Class="sa-panel-subtitle mb-4">Currently archived documents</MudText>
+                @foreach (var pair in DepartmentStats()) { <div class="sa-dept-row"><MudStack Row="true" Justify="Justify.SpaceBetween"><MudText Typo="Typo.body2">@pair.Name</MudText><MudText Typo="Typo.body2" Style="font-weight:700">@pair.Count</MudText></MudStack><MudProgressLinear Value="@Bar(pair.Count)" Color="Color.Primary" Rounded="true" Size="Size.Small" Class="mt-2 mb-4" /></div> }
+                @if (DepartmentStats().Count == 0) { <MudText Class="sa-empty-state">Departments will appear here as documents are archived.</MudText> }
+            </MudPaper>
+        </MudItem>
     </MudGrid>
-    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.VerifiedUser" Class="sa-notice mt-4"><MudText Typo="Typo.body2"><b>Validation humaine obligatoire.</b> Aucun document n’est ajouté à l’archive officielle sans approbation explicite.</MudText><MudButton Href="/validation" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward">Centre de validation</MudButton></MudAlert>
+
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.VerifiedUser" Class="sa-notice mt-4"><MudText Typo="Typo.body2"><b>Human review is required.</b> Documents are not added to the official archive without explicit approval.</MudText><MudButton Href="/validation" Variant="Variant.Text" Color="Color.Primary" EndIcon="@Icons.Material.Filled.ArrowForward">Review center</MudButton></MudAlert>
 }
 
 @code {
-    private object? _stats; private List<ArchiveDocument> _recent = [];
-    protected override async Task OnInitializedAsync() { _stats = await Repository.StatisticsAsync(); _recent = (await Repository.ListAsync()).Take(8).ToList(); }
-    private int Get(string n) => System.Text.Json.JsonSerializer.SerializeToElement(_stats).GetProperty(n).GetInt32();
-    private List<(string Name,int Count)> DepartmentStats() { try { return System.Text.Json.JsonSerializer.SerializeToElement(_stats).GetProperty("ByDepartment").EnumerateArray().Select(x => (x.GetProperty("Name").GetString() ?? "", x.GetProperty("Count").GetInt32())).ToList(); } catch { return []; } }
-    private static double Bar(int n) => Math.Clamp(n * 13, 5, 100);
-    private static string StatusText(DocumentStatus s) => s switch { DocumentStatus.Archived => "Archivé", DocumentStatus.PendingValidation => "À valider", DocumentStatus.Processing => "Analyse IA", DocumentStatus.ProcessingFailed => "Échec", DocumentStatus.Rejected => "Rejeté", _ => s.ToString() };
-    private static Color StatusColor(DocumentStatus s) => s switch { DocumentStatus.Archived => Color.Success, DocumentStatus.PendingValidation => Color.Warning, DocumentStatus.ProcessingFailed or DocumentStatus.Rejected => Color.Error, _ => Color.Info };
+    private object? _stats;
+    private List<ArchiveDocument> _recent = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stats = await Repository.StatisticsAsync();
+        _recent = (await Repository.ListAsync()).Take(8).ToList();
+    }
+
+    private int Get(string name) => System.Text.Json.JsonSerializer.SerializeToElement(_stats).GetProperty(name).GetInt32();
+
+    private List<(string Name, int Count)> DepartmentStats()
+    {
+        try { return System.Text.Json.JsonSerializer.SerializeToElement(_stats).GetProperty("ByDepartment").EnumerateArray().Select(x => (x.GetProperty("Name").GetString() ?? "", x.GetProperty("Count").GetInt32())).ToList(); }
+        catch { return []; }
+    }
+
+    private static double Bar(int count) => Math.Clamp(count * 13, 5, 100);
+
+    private static string StatusText(DocumentStatus status) => status switch
+    {
+        DocumentStatus.Archived => "Archived",
+        DocumentStatus.PendingValidation => "Pending review",
+        DocumentStatus.Processing => "Analyzing",
+        DocumentStatus.ProcessingFailed => "Failed",
+        DocumentStatus.Rejected => "Rejected",
+        _ => status.ToString()
+    };
+
+    private static Color StatusColor(DocumentStatus status) => status switch
+    {
+        DocumentStatus.Archived => Color.Success,
+        DocumentStatus.PendingValidation => Color.Warning,
+        DocumentStatus.ProcessingFailed or DocumentStatus.Rejected => Color.Error,
+        _ => Color.Info
+    };
 }
