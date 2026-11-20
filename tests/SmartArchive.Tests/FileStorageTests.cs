@@ -10,7 +10,7 @@ namespace SmartArchive.Tests;
 public sealed class FileStorageTests
 {
     [Fact]
-    public async Task Compression_is_lossless_and_stores_only_the_smaller_representation()
+    public async Task Compression_is_lossless_and_pdf_can_be_moved_to_document_date_department_partition()
     {
         var contentRoot = Path.Combine(Path.GetTempPath(), $"smartarchive-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(contentRoot);
@@ -24,16 +24,24 @@ public sealed class FileStorageTests
             var original = Encoding.ASCII.GetBytes("%PDF-1.7\n" + new string('A', 40_000) + "\n%%EOF");
             var id = Guid.NewGuid();
 
+            var uploadedAt = new DateTimeOffset(2026, 11, 20, 12, 0, 0, TimeSpan.Zero);
             using var input = new MemoryStream(original);
-            var reference = await storage.SaveAsync(id, "test.pdf", input);
+            var reference = await storage.SaveAsync(id, "test.pdf", input, uploadedAt, "Unclassified");
 
             Assert.StartsWith("local-gzip:", reference, StringComparison.Ordinal);
             var storedPath = reference["local-gzip:".Length..];
             Assert.True(new FileInfo(storedPath).Length < original.Length);
-            Assert.True(File.Exists(Path.Combine(contentRoot, "App_Data", "archive", "pdfs", $"{id:N}.pdf.gz")));
-            Assert.False(File.Exists(Path.Combine(contentRoot, "App_Data", "archive", "pdfs", $"{id:N}.pdf")));
+            Assert.True(File.Exists(Path.Combine(contentRoot, "App_Data", "archive", "pdfs", "2026", "11", "20", "Unclassified", $"{id:N}.pdf.gz")));
+            Assert.False(File.Exists(Path.Combine(contentRoot, "App_Data", "archive", "pdfs", "2026", "11", "20", "Unclassified", $"{id:N}.pdf")));
 
-            await using var restored = await storage.OpenAsync(reference);
+            var targetReference = await storage.MoveToArchivePathAsync(id, "test.pdf", reference, uploadedAt, "Quality", new DateOnly(2026, 11, 19));
+            Assert.StartsWith("local-gzip:", targetReference, StringComparison.Ordinal);
+            Assert.Contains(Path.Combine("2026", "11", "19", "Quality", $"{id:N}.pdf.gz"), targetReference, StringComparison.Ordinal);
+            Assert.True(File.Exists(storedPath));
+            await storage.DeleteAsync(reference);
+            Assert.False(File.Exists(storedPath));
+
+            await using var restored = await storage.OpenAsync(targetReference);
             Assert.NotNull(restored);
             using var output = new MemoryStream();
             await restored.CopyToAsync(output);

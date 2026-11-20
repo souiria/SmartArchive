@@ -15,6 +15,9 @@ public interface IDocumentRepository
 public interface IFileStorageService
 {
     Task<string> SaveAsync(Guid id, string fileName, Stream stream, CancellationToken ct = default);
+    Task<string> SaveAsync(Guid id, string fileName, Stream stream, DateTimeOffset uploadedAt, string department, DateOnly? documentDate = null, CancellationToken ct = default);
+    Task<string> MoveToArchivePathAsync(Guid id, string fileName, string reference, DateTimeOffset uploadedAt, string department, DateOnly? documentDate = null, CancellationToken ct = default);
+    Task DeleteAsync(string reference, CancellationToken ct = default);
     Task<Stream?> OpenAsync(string reference, CancellationToken ct = default);
 }
 

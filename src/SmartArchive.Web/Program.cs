@@ -39,7 +39,7 @@ app.MapPost("/api/documents/{id:guid}/review", async (Guid id, ReviewRequest bod
     catch (InvalidOperationException ex) { return Results.BadRequest(new { error = ex.Message }); }
 });
 app.MapPost("/api/documents/{id:guid}/retry", async (Guid id, IDocumentWorkflow workflow) => { try { await workflow.RetryAnalysisAsync(id); return Results.NoContent(); } catch (KeyNotFoundException) { return Results.NotFound(); } });
-app.MapGet("/api/documents/{id:guid}/file", async (Guid id, IDocumentWorkflow workflow, IDocumentRepository repo) => { var doc = await repo.GetAsync(id); if (doc is null) return Results.NotFound(); var bytes = await workflow.DownloadAsync(id); return bytes is null ? Results.NotFound() : Results.File(bytes, "application/pdf", doc.FileName, enableRangeProcessing: true); });
+app.MapGet("/api/documents/{id:guid}/file", async (Guid id, IDocumentWorkflow workflow, IDocumentRepository repo) => { var doc = await repo.GetAsync(id); if (doc is null) return Results.NotFound(); var bytes = await workflow.DownloadAsync(id); return bytes is null ? Results.NotFound() : Results.File(bytes, contentType: "application/pdf", enableRangeProcessing: true); });
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();
 

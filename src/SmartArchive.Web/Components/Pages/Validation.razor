@@ -4,6 +4,7 @@
 @using SmartArchive.Domain
 @inject IDocumentRepository Repository
 @inject IDocumentWorkflow Workflow
+@inject IArchiveSettingsService ArchiveSettings
 
 <PageTitle>Review center · Smart Archive</PageTitle>
 
@@ -32,7 +33,11 @@ else
                     <MudItem xs="12" lg="7">
                         <div class="sa-preview-pane">
                             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="sa-preview-toolbar">
-                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2"><MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" /><MudText Typo="Typo.body2">@document.FileName</MudText></MudStack>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" Color="Color.Error" />
+                                    <MudText Typo="Typo.body2">@document.FileName</MudText>
+                                    <MudText Typo="Typo.caption" Class="sa-page-subtitle">Uploaded @document.UploadedAt.ToLocalTime().ToString("MMM d, yyyy")</MudText>
+                                </MudStack>
                                 <MudButton Href="@($"/api/documents/{document.Id}/file")" Target="_blank" Variant="Variant.Text" EndIcon="@Icons.Material.Filled.OpenInNew">Open PDF</MudButton>
                             </MudStack>
                             <iframe title="PDF preview: @document.FileName" class="sa-preview-frame" src="/api/documents/@document.Id/file"></iframe>
@@ -46,15 +51,19 @@ else
                             </MudAlert>
                             @if (!string.IsNullOrWhiteSpace(document.Warnings)) { <MudAlert Severity="Severity.Warning" Dense="true" Variant="Variant.Outlined" Class="mb-3">@document.Warnings</MudAlert> }
                             <MudTextField @bind-Value="document.Title" Label="Document title" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
-                            <MudSelect T="string" @bind-Value="document.DepartmentName" Label="Suggested department" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true">@foreach (var department in _departments) { <MudSelectItem T="string" Value="@department.Name">@department.Name</MudSelectItem> }</MudSelect>
+                            <MudSelect T="string" @bind-Value="document.DepartmentName" Label="Suggested department" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true">
+                                @foreach (var department in _departments) { <MudSelectItem T="string" Value="@department.Name">@department.Name</MudSelectItem> }
+                            </MudSelect>
                             <MudTextField @bind-Value="document.Category" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
-                            <MudDatePicker Date="ToDateTime(document.DocumentDate)" DateChanged="@(value => UpdateDate(document, value))" Label="Document date" DateFormat="MM/dd/yyyy" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            <MudDatePicker Date="ToDateTime(document.DocumentDate)" DateChanged="@(value => UpdateDate(document, value))" Label="Document date" HelperText="Used in the archive path; if blank, the upload date is used." DateFormat="MM/dd/yyyy" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense" />
                             <MudTextField @bind-Value="document.ReferenceNumber" Label="Reference number" Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
                             <MudTextField @bind-Value="document.ReviewerComment" Label="Review comment" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" FullWidth="true" />
                             @if (!string.IsNullOrEmpty(document.ExtractedText)) { <MudExpansionPanels Class="mb-3"><MudExpansionPanel Text="Text extracted from the PDF"><MudText Typo="Typo.body2" Class="text-wrap">@document.ExtractedText</MudText></MudExpansionPanel></MudExpansionPanels> }
                             <MudStack Row="true" Spacing="2" Class="mt-2">
-                                <MudButton OnClick="() => Review(document, true)" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Verified">Approve and archive</MudButton>
-                                <MudButton OnClick="() => Review(document, false)" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Block">Reject</MudButton>
+                                <MudButton OnClick="@(async () => await ReviewAsync(document, true))" Disabled="@(_reviewingDocumentId.HasValue)" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Verified">
+                                    @(_reviewingDocumentId == document.Id ? "Saving..." : "Approve and archive")
+                                </MudButton>
+                                <MudButton OnClick="@(async () => await ReviewAsync(document, false))" Disabled="@(_reviewingDocumentId.HasValue)" Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Block">Reject</MudButton>
                             </MudStack>
                         </div>
                     </MudItem>
@@ -64,24 +73,56 @@ else
     </MudStack>
 }
 
-@if (!string.IsNullOrEmpty(_message)) { <MudAlert Severity="Severity.Success" Variant="Variant.Filled" Class="mt-4">@_message</MudAlert> }
+@if (!string.IsNullOrEmpty(_message))
+{
+    <MudAlert Severity="@_messageSeverity" Variant="Variant.Filled" Class="mt-4">@_message</MudAlert>
+}
 
 @code {
     private List<ArchiveDocument> _docs = [];
     private List<Department> _departments = [];
     private string _message = string.Empty;
+    private Severity _messageSeverity = Severity.Success;
+    private string _reviewer = "Smart Archive reviewer";
+    private Guid? _reviewingDocumentId;
 
     protected override async Task OnInitializedAsync()
     {
         _departments = (await Repository.DepartmentsAsync()).ToList();
         _docs = (await Repository.ListAsync(status: DocumentStatus.PendingValidation)).ToList();
+        _reviewer = (await ArchiveSettings.GetAsync()).DisplayName;
     }
 
-    private async Task Review(ArchiveDocument document, bool approve)
+    private async Task ReviewAsync(ArchiveDocument document, bool approve)
     {
-        await Workflow.ReviewAsync(document.Id, document.Title, document.DepartmentName, document.Category, document.DocumentDate, document.ReferenceNumber, document.ReviewerComment ?? string.Empty, "Local reviewer", approve);
-        _docs.Remove(document);
-        _message = approve ? "Document approved and archived." : "Document rejected.";
+        if (_reviewingDocumentId.HasValue) return;
+        _reviewingDocumentId = document.Id;
+        _message = string.Empty;
+        try
+        {
+            await Workflow.ReviewAsync(
+                document.Id,
+                document.Title,
+                document.DepartmentName,
+                document.Category,
+                document.DocumentDate,
+                document.ReferenceNumber,
+                document.ReviewerComment ?? string.Empty,
+                _reviewer,
+                approve);
+            _docs.Remove(document);
+            _messageSeverity = Severity.Success;
+            _message = approve ? "Document approved and archived." : "Document rejected.";
+        }
+        catch (Exception exception)
+        {
+            _messageSeverity = Severity.Error;
+            _message = $"Could not {(approve ? "approve" : "reject")} this document. It remains in the review queue. {exception.Message}";
+        }
+        finally
+        {
+            _reviewingDocumentId = null;
+        }
     }
 
     private static DateTime? ToDateTime(DateOnly? value) => value.HasValue ? value.Value.ToDateTime(TimeOnly.MinValue) : null;

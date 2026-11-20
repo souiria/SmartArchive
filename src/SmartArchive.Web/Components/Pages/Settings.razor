@@ -31,7 +31,10 @@ else
                 <MudDivider Class="my-5" />
                 <MudText Class="sa-panel-title">PDF storage</MudText>
                 <MudText Class="sa-panel-subtitle mb-3">New uploads are copied from the browser to the server. Browser security does not allow the app to move or delete the user's local source file.</MudText>
-                <MudTextField @bind-Value="_model.LocalStorageFolder" Label="Folder inside App_Data" HelperText="For example: documents or archive/pdfs. Existing files remain available; changing this affects new uploads only." Variant="Variant.Outlined" Required="true" />
+                <MudTextField @bind-Value="_model.LocalStorageFolder" Label="Folder inside App_Data" HelperText="For example: documents or archive/pdfs. Existing files remain available; new uploads use this folder and reviewed files move here when needed." Variant="Variant.Outlined" Required="true" />
+                <MudText Typo="Typo.subtitle2" Class="mt-4">Target path pattern</MudText>
+                <MudPaper Outlined="true" Class="pa-3 mt-2"><code>@StoragePathPattern</code></MudPaper>
+                <MudText Typo="Typo.caption" Class="d-block mt-2">The folder date uses the document date when entered, otherwise the upload date in UTC. The department is taken from analysis and updated to the selected department when reviewed.</MudText>
                 <MudSwitch T="bool" @bind-Value="_model.CompressPdfs" Color="Color.Primary" Class="mt-4">Enable lossless compression at rest</MudSwitch>
                 <MudText Typo="Typo.caption" Class="sa-page-subtitle">When enabled, the app stores a lossless GZip representation only if it is smaller. Downloads and previews restore the exact original PDF bytes. No image quality or resolution is changed; already-compressed PDFs may not shrink.</MudText>
 
@@ -58,6 +61,20 @@ else
     private bool _loading = true;
     private bool _saving;
     private bool _azureConfigured;
+
+    private string StoragePathPattern
+    {
+        get
+        {
+            var folder = string.IsNullOrWhiteSpace(_model.LocalStorageFolder) ? "documents" : _model.LocalStorageFolder.Trim('/');
+            var blobConnection = Configuration["AzureBlobStorage:ConnectionString"];
+            var root = string.IsNullOrWhiteSpace(blobConnection)
+                ? $"App_Data/{folder}"
+                : $"{Configuration["AzureBlobStorage:Container"] ?? "smartarchive"}/{folder}";
+            var compressionSuffix = _model.CompressPdfs ? " (or .pdf.gz when smaller)" : string.Empty;
+            return $"{root}/{{year}}/{{month}}/{{day}}/{{department}}/{{documentId}}.pdf{compressionSuffix}";
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

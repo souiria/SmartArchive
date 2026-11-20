@@ -1,43 +1,228 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using SmartArchive.Application;
 using SmartArchive.Domain;
 
 namespace SmartArchive.Infrastructure;
 
-public sealed class DocumentWorkflow(IDocumentRepository repository, IFileStorageService storage, IDocumentIntelligenceService intelligence) : IDocumentWorkflow
+public sealed class DocumentWorkflow(
+    IDocumentRepository repository,
+    IFileStorageService storage,
+    IDocumentIntelligenceService intelligence,
+    ILogger<DocumentWorkflow> logger) : IDocumentWorkflow
 {
     public async Task<UploadResult> UploadAsync(string fileName, string contentType, Stream stream, string uploadedBy, CancellationToken ct = default)
     {
-        var ext = Path.GetExtension(fileName);
-        if (!string.Equals(ext, ".pdf", StringComparison.OrdinalIgnoreCase) || (contentType != "application/pdf" && contentType != "application/octet-stream")) throw new InvalidOperationException("Only PDF files are accepted.");
-        var max = 50L * 1024 * 1024; using var input = new MemoryStream(); await stream.CopyToAsync(input, ct);
-        if (input.Length == 0 || input.Length > max) throw new InvalidOperationException("The PDF must be between 1 byte and 50 MiB.");
-        var bytes = input.ToArray(); if (bytes.Length < 5 || System.Text.Encoding.ASCII.GetString(bytes, 0, 5) != "%PDF-") throw new InvalidOperationException("The file contents are not a valid PDF.");
-        var hash = Convert.ToHexString(SHA256.HashData(bytes));
-        if ((await repository.ListAsync(ct: ct)).Any(d => d.ContentHash == hash)) return new UploadResult(Guid.Empty, fileName, true);
-        var id = Guid.NewGuid(); input.Position = 0; var reference = await storage.SaveAsync(id, Path.GetFileName(fileName), input, ct);
-        var doc = new ArchiveDocument { Id = id, FileName = Path.GetFileName(fileName), Title = Path.GetFileNameWithoutExtension(fileName), BlobReference = reference, ContentHash = hash, SizeBytes = bytes.Length, UploadedBy = uploadedBy, Status = DocumentStatus.Uploaded, AuditJson = AddAudit("Upload", uploadedBy, "PDF received") };
-        DocumentLifecycle.Move(doc, DocumentStatus.Processing);
-        await repository.AddAsync(doc, ct);
-        try { await Analyze(doc, ct); }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception ex) { DocumentLifecycle.Move(doc, DocumentStatus.ProcessingFailed); doc.Warnings = $"Analysis failed ({ex.GetType().Name}). Check service settings, including Azure endpoint/authentication if configured, then retry."; await repository.SaveAsync(doc, ct); }
+        var extension = Path.GetExtension(fileName);
+        if (!string.Equals(extension, ".pdf", StringComparison.OrdinalIgnoreCase) ||
+            (contentType != "application/pdf" && contentType != "application/octet-stream"))
+            throw new InvalidOperationException("Only PDF files are accepted.");
+
+        const long maxBytes = 50L * 1024 * 1024;
+        using var input = new MemoryStream();
+        await stream.CopyToAsync(input, ct);
+        if (input.Length == 0 || input.Length > maxBytes)
+            throw new InvalidOperationException("The PDF must be between 1 byte and 50 MiB.");
+
+        var bytes = input.ToArray();
+        if (bytes.Length < 5 || System.Text.Encoding.ASCII.GetString(bytes, 0, 5) != "%PDF-")
+            throw new InvalidOperationException("The file contents are not a valid PDF.");
+
+        var contentHash = Convert.ToHexString(SHA256.HashData(bytes));
+        if ((await repository.ListAsync(ct: ct)).Any(document => document.ContentHash == contentHash))
+            return new UploadResult(Guid.Empty, fileName, true);
+
+        var id = Guid.NewGuid();
+        var uploadedAt = DateTimeOffset.UtcNow;
+        input.Position = 0;
+        var reference = await storage.SaveAsync(id, Path.GetFileName(fileName), input, uploadedAt, "Unclassified", null, ct);
+        var document = new ArchiveDocument
+        {
+            Id = id,
+            FileName = Path.GetFileName(fileName),
+            Title = Path.GetFileNameWithoutExtension(fileName),
+            BlobReference = reference,
+            ContentHash = contentHash,
+            SizeBytes = bytes.Length,
+            UploadedBy = uploadedBy,
+            UploadedAt = uploadedAt,
+            Status = DocumentStatus.Uploaded,
+            AuditJson = AddAudit("Upload", uploadedBy, "PDF received")
+        };
+        DocumentLifecycle.Move(document, DocumentStatus.Processing);
+        await repository.AddAsync(document, ct);
+
+        try
+        {
+            await Analyze(document, ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            document.Status = DocumentStatus.Processing;
+            DocumentLifecycle.Move(document, DocumentStatus.ProcessingFailed);
+            document.Warnings = $"Analysis failed ({ex.GetType().Name}). Check service settings, including Azure endpoint/authentication if configured, then retry.";
+            await repository.SaveAsync(document, ct);
+        }
+
         return new UploadResult(id, fileName, false);
     }
-    public async Task RetryAnalysisAsync(Guid id, CancellationToken ct = default) { var doc = await repository.GetAsync(id, ct) ?? throw new KeyNotFoundException(); DocumentLifecycle.Move(doc, DocumentStatus.Processing); await repository.SaveAsync(doc, ct); await Analyze(doc, ct); }
-    private async Task Analyze(ArchiveDocument doc, CancellationToken ct)
+
+    public async Task RetryAnalysisAsync(Guid id, CancellationToken ct = default)
     {
-        await using var input = await storage.OpenAsync(doc.BlobReference, ct) ?? throw new IOException("File not found.");
-        var s = await intelligence.AnalyzeAsync(doc.FileName, input, ct: ct); doc.Title = s.Title; doc.DepartmentName = s.Department; doc.DepartmentId = (await repository.DepartmentsAsync(ct)).FirstOrDefault(x => x.Name == s.Department)?.Id ?? 10; doc.Category = s.Category; doc.DocumentDate = s.DocumentDate; doc.ReferenceNumber = s.ReferenceNumber; doc.ExtractedText = s.ExtractedText; doc.Keywords = s.Keywords; doc.Description = s.Description; doc.Confidence = s.Confidence; doc.Warnings = s.Warnings; DocumentLifecycle.Move(doc, DocumentStatus.PendingValidation); doc.AuditJson = AddAudit("AIAnalysis", "SmartArchive", $"Analyse indicative, confiance {s.Confidence:P0}", doc.AuditJson); await repository.SaveAsync(doc, ct);
+        var document = await repository.GetAsync(id, ct) ?? throw new KeyNotFoundException();
+        DocumentLifecycle.Move(document, DocumentStatus.Processing);
+        await repository.SaveAsync(document, ct);
+        await Analyze(document, ct);
     }
+
+    private async Task Analyze(ArchiveDocument document, CancellationToken ct)
+    {
+        var previousReference = document.BlobReference;
+        await using var storedPdf = await storage.OpenAsync(previousReference, ct) ?? throw new IOException("File not found.");
+        using var pdfForAnalysis = new MemoryStream();
+        await storedPdf.CopyToAsync(pdfForAnalysis, ct);
+        pdfForAnalysis.Position = 0;
+
+        var suggestion = await intelligence.AnalyzeAsync(document.FileName, pdfForAnalysis, ct: ct);
+        var newReference = await storage.MoveToArchivePathAsync(
+            document.Id,
+            document.FileName,
+            previousReference,
+            document.UploadedAt,
+            suggestion.Department,
+            suggestion.DocumentDate,
+            ct);
+
+        document.Title = suggestion.Title;
+        document.DepartmentName = suggestion.Department;
+        document.DepartmentId = (await repository.DepartmentsAsync(ct)).FirstOrDefault(x => x.Name == suggestion.Department)?.Id ?? 10;
+        document.Category = suggestion.Category;
+        document.DocumentDate = suggestion.DocumentDate;
+        document.ReferenceNumber = suggestion.ReferenceNumber;
+        document.ExtractedText = suggestion.ExtractedText;
+        document.Keywords = suggestion.Keywords;
+        document.Description = suggestion.Description;
+        document.Confidence = suggestion.Confidence;
+        document.Warnings = suggestion.Warnings;
+        document.BlobReference = newReference;
+        DocumentLifecycle.Move(document, DocumentStatus.PendingValidation);
+        document.AuditJson = AddAudit("AIAnalysis", "SmartArchive", $"Indicative analysis, confidence {suggestion.Confidence:P0}", document.AuditJson);
+        try
+        {
+            await repository.SaveAsync(document, ct);
+        }
+        catch
+        {
+            document.Status = DocumentStatus.Processing;
+            document.BlobReference = previousReference;
+            await TryDeletePreviousReferenceAsync(document.Id, newReference, previousReference, ct);
+            throw;
+        }
+        await TryDeletePreviousReferenceAsync(document.Id, previousReference, newReference, ct);
+    }
+
     public async Task ReviewAsync(Guid id, string title, string department, string category, DateOnly? date, string reference, string comment, string reviewer, bool approve, CancellationToken ct = default)
     {
-        var doc = await repository.GetAsync(id, ct) ?? throw new KeyNotFoundException();
-        if (doc.Status is not (DocumentStatus.PendingValidation or DocumentStatus.UnderReview or DocumentStatus.Rejected)) throw new InvalidOperationException("This document is not in the review queue.");
-        doc.Title = title.Trim(); doc.DepartmentName = department; doc.DepartmentId = (await repository.DepartmentsAsync(ct)).FirstOrDefault(x => x.Name == department)?.Id ?? doc.DepartmentId; doc.Category = category.Trim(); doc.DocumentDate = date; doc.ReferenceNumber = reference.Trim(); doc.ReviewerComment = comment; doc.ValidatedBy = reviewer; doc.ValidatedAt = DateTimeOffset.UtcNow; DocumentLifecycle.Move(doc, approve ? DocumentStatus.Archived : DocumentStatus.Rejected); doc.AuditJson = AddAudit(approve ? "ApprovedAndArchived" : "Rejected", reviewer, comment, doc.AuditJson); await repository.SaveAsync(doc, ct);
+        var document = await repository.GetAsync(id, ct) ?? throw new KeyNotFoundException();
+        if (document.Status is not (DocumentStatus.PendingValidation or DocumentStatus.UnderReview or DocumentStatus.Rejected))
+            throw new InvalidOperationException("This document is not in the review queue.");
+
+        var previousReference = document.BlobReference;
+        var newReference = await storage.MoveToArchivePathAsync(
+            document.Id,
+            document.FileName,
+            previousReference,
+            document.UploadedAt,
+            department,
+            date,
+            ct);
+
+        var previousStatus = document.Status;
+        var previousTitle = document.Title;
+        var previousDepartmentName = document.DepartmentName;
+        var previousDepartmentId = document.DepartmentId;
+        var previousCategory = document.Category;
+        var previousDocumentDate = document.DocumentDate;
+        var previousReferenceNumber = document.ReferenceNumber;
+        var previousComment = document.ReviewerComment;
+        var previousValidatedBy = document.ValidatedBy;
+        var previousValidatedAt = document.ValidatedAt;
+        var previousAudit = document.AuditJson;
+
+        document.Title = title.Trim();
+        document.DepartmentName = department;
+        document.DepartmentId = (await repository.DepartmentsAsync(ct)).FirstOrDefault(x => x.Name == department)?.Id ?? document.DepartmentId;
+        document.Category = category.Trim();
+        document.DocumentDate = date;
+        document.ReferenceNumber = reference.Trim();
+        document.ReviewerComment = comment;
+        document.ValidatedBy = reviewer;
+        document.ValidatedAt = DateTimeOffset.UtcNow;
+        document.BlobReference = newReference;
+        DocumentLifecycle.Move(document, approve ? DocumentStatus.Archived : DocumentStatus.Rejected);
+        document.AuditJson = AddAudit(approve ? "ApprovedAndArchived" : "Rejected", reviewer, comment, document.AuditJson);
+
+        try
+        {
+            await repository.SaveAsync(document, ct);
+        }
+        catch
+        {
+            document.Status = previousStatus;
+            document.Title = previousTitle;
+            document.DepartmentName = previousDepartmentName;
+            document.DepartmentId = previousDepartmentId;
+            document.Category = previousCategory;
+            document.DocumentDate = previousDocumentDate;
+            document.ReferenceNumber = previousReferenceNumber;
+            document.ReviewerComment = previousComment;
+            document.ValidatedBy = previousValidatedBy;
+            document.ValidatedAt = previousValidatedAt;
+            document.AuditJson = previousAudit;
+            document.BlobReference = previousReference;
+            if (!string.Equals(previousReference, newReference, StringComparison.Ordinal))
+            {
+                await TryDeletePreviousReferenceAsync(document.Id, newReference, previousReference, ct);
+            }
+            throw;
+        }
+
+        await TryDeletePreviousReferenceAsync(document.Id, previousReference, newReference, ct);
     }
-    public async Task<byte[]?> DownloadAsync(Guid id, CancellationToken ct = default) { var doc = await repository.GetAsync(id, ct); if (doc is null) return null; await using var s = await storage.OpenAsync(doc.BlobReference, ct); if (s is null) return null; using var m = new MemoryStream(); await s.CopyToAsync(m, ct); return m.ToArray(); }
-    private static string AddAudit(string action, string actor, string detail, string existing = "[]") { var rows = JsonSerializer.Deserialize<List<object>>(existing) ?? []; rows.Add(new { action, actor, detail, at = DateTimeOffset.UtcNow }); return JsonSerializer.Serialize(rows); }
+
+    public async Task<byte[]?> DownloadAsync(Guid id, CancellationToken ct = default)
+    {
+        var document = await repository.GetAsync(id, ct);
+        if (document is null) return null;
+        await using var stream = await storage.OpenAsync(document.BlobReference, ct);
+        if (stream is null) return null;
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, ct);
+        return buffer.ToArray();
+    }
+
+    private async Task TryDeletePreviousReferenceAsync(Guid documentId, string previousReference, string currentReference, CancellationToken ct)
+    {
+        if (string.Equals(previousReference, currentReference, StringComparison.Ordinal)) return;
+        try
+        {
+            await storage.DeleteAsync(previousReference, ct);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not remove the superseded PDF copy for document {DocumentId}.", documentId);
+        }
+    }
+
+    private static string AddAudit(string action, string actor, string detail, string existing = "[]")
+    {
+        var rows = JsonSerializer.Deserialize<List<object>>(existing) ?? [];
+        rows.Add(new { action, actor, detail, at = DateTimeOffset.UtcNow });
+        return JsonSerializer.Serialize(rows);
+    }
 }
